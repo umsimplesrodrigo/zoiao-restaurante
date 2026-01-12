@@ -1,0 +1,24 @@
+* { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+body { background-color: #eef2f3; margin: 0; display: flex; justify-content: center; }
+.container { width: 100%; max-width: 450px; padding: 15px; }
+
+.card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+h1 { color: #2c3e50; text-align: center; margin-bottom: 5px; }
+p { text-align: center; color: #7f8c8d; margin-bottom: 20px; }
+
+input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
+.row { display: flex; gap: 10px; }
+.row div { flex: 1; }
+
+button { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 10px; }
+button:active { transform: scale(0.98); }
+
+.btn-confirmar { background-color: #27ae60; color: white; }
+.btn-cancelar { background-color: #bdc3c7; color: #333; }
+.btn-sair { background: #e74c3c; color: white; padding: 5px 10px; width: auto; font-size: 12px; }
+
+header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: white; padding: 10px; border-radius: 8px; }
+
+.grid-mesas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.mesa-btn { background: #3498db; color: white; height: 80px; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-weight: bold; font-size: 18px; box-shadow: 0 4px 0 #2980b9; }
+.mesa-btn:active { box-shadow: none; transform: translateY(4px); }
