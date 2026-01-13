@@ -18,12 +18,11 @@ let carrinho = [];
 let dadosCardapio = null;
 let dadosMesas = null;
 
-// --- 1. CONTROLE DE ACESSO COM LIMPEZA DE ESPAÇOS ---
-
+// --- LOGIN E PERSISTÊNCIA ---
 window.onload = () => {
-    const atendenteSalvo = localStorage.getItem('atendente');
-    if (atendenteSalvo) {
-        document.getElementById('nome-atendente').value = atendenteSalvo;
+    const salvo = localStorage.getItem('atendente');
+    if (salvo) {
+        document.getElementById('nome-atendente').value = salvo;
         fazerLogin();
     }
 };
@@ -32,27 +31,21 @@ window.fazerLogin = async function() {
     const campoNome = document.getElementById('nome-atendente');
     let nomeBruto = campoNome.value;
     
-    if (!nomeBruto || nomeBruto.trim() === "") {
-        return alert("Por favor, digite seu nome.");
-    }
+    if (!nomeBruto || nomeBruto.trim() === "") return alert("Digite seu nome.");
 
-    // LIMPEZA TOTAL:
-    // 1. .trim() remove espaços no início e fim.
-    // 2. .replace(/\s+/g, ' ') substitui múltiplos espaços internos por apenas um.
+    // Limpeza de espaços (Início, Fim e Duplos)
     const nomeLimpo = nomeBruto.trim().replace(/\s+/g, ' ');
 
-    // Geração do ID (slug) para o banco sem espaços e sem acentos
+    // Gerar ID único (Slug)
     const slug = nomeLimpo.toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "") 
-        .replace(/[^a-z0-9]/g, '-') // Qualquer caractere estranho vira traço
-        .replace(/-+/g, '-')       // Evita traços duplos
-        .replace(/^-+|-+$/g, '');  // Remove traços no início ou fim
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '');
 
     try {
         await update(ref(db, 'atendentes/' + slug), {
-            nome_exibicao: nomeLimpo, // Envia para o banco o nome corrigido
-            slug: slug,
+            nome_exibicao: nomeLimpo,
             ultimo_acesso: new Date().toLocaleString(),
             status: "online"
         });
@@ -65,7 +58,7 @@ window.fazerLogin = async function() {
         carregarDadosBase();
         ouvirPedidos();
     } catch (e) {
-        alert("Erro ao conectar com o banco.");
+        alert("Erro de conexão.");
     }
 };
 
@@ -74,8 +67,7 @@ window.logout = () => {
     location.reload();
 };
 
-// --- 2. NAVEGAÇÃO ---
-
+// --- NAVEGAÇÃO ---
 window.mudarAbaPrincipal = (aba, btn) => {
     document.querySelectorAll('#tabs-principais .tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
@@ -88,8 +80,7 @@ window.voltarParaDashboard = () => {
     document.getElementById('tela-dashboard').style.display = 'block';
 };
 
-// --- 3. DADOS (MESAS E PRODUTOS) ---
-
+// --- CARREGAMENTO ---
 async function carregarDadosBase() {
     const [snM, snP] = await Promise.all([get(ref(db, 'setores_mesas')), get(ref(db, 'produtos'))]);
     if (snM.exists()) { dadosMesas = snM.val(); montarSetores(); }
@@ -106,23 +97,23 @@ function montarSetores() {
         btn.onclick = () => {
             document.querySelectorAll('#tabs-setores .tab-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            renderizarGridMesas(s);
+            renderizarGrid(s);
         };
         cont.appendChild(btn);
     });
-    renderizarGridMesas(Object.keys(dadosMesas)[0]);
+    renderizarGrid(Object.keys(dadosMesas)[0]);
 }
 
-function renderizarGridMesas(setor) {
+function renderizarGrid(s) {
     const grid = document.getElementById('grid-mesas');
     grid.innerHTML = "";
-    for (let id in dadosMesas[setor]) {
-        const m = dadosMesas[setor][id];
+    for (let id in dadosMesas[s]) {
+        const m = dadosMesas[s][id];
         const btn = document.createElement('button');
         btn.className = "mesa-btn";
         btn.innerText = "Mesa " + m.numero;
         btn.onclick = () => {
-            document.getElementById('mesa-titulo').innerText = `${setor} - Mesa ${m.numero}`;
+            document.getElementById('mesa-titulo').innerText = `${s} - Mesa ${m.numero}`;
             document.getElementById('tela-dashboard').style.display = 'none';
             document.getElementById('tela-pedido').style.display = 'block';
             carrinho = [];
@@ -192,8 +183,7 @@ window.enviarPedidoFinal = async () => {
     carrinho = []; atualizarCarrinho(); voltarParaDashboard();
 };
 
-// --- 4. MONITORAMENTO DE PEDIDOS ---
-
+// --- MONITORAMENTO DE PEDIDOS COM DETALHES ---
 function ouvirPedidos() {
     const atendenteLogado = localStorage.getItem('atendente');
     onValue(ref(db, 'pedidos'), (snap) => {
@@ -206,13 +196,20 @@ function ouvirPedidos() {
                 const p = peds[id];
                 if (p.atendente === atendenteLogado) {
                     temMeus = true;
+                    const idLista = `detalhes-${id}`;
                     const card = document.createElement('div');
                     card.className = `card pedido-status-${p.status}`;
-                    card.style.borderLeft = "6px solid " + (p.status === 'pendente' ? '#f1c40f' : p.status === 'preparando' ? '#3498db' : '#2ecc71');
                     card.innerHTML = `
-                        <strong>${p.mesa}</strong> <small>${p.hora}</small><br>
-                        <div style="font-size:12px; color:#666">${p.itens.map(i => i.nome).join(', ')}</div>
-                        <div style="margin-top:10px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;">
+                        <div style="display:flex; justify-content:space-between"><strong>${p.mesa}</strong> <small>${p.hora}</small></div>
+                        
+                        <button onclick="toggleDetalhes('${idLista}')" style="width:100%; margin: 10px 0; padding: 6px; font-size: 11px; background: #eee; border:none; border-radius:5px; cursor:pointer">📋 VER ITENS (${p.itens.length})</button>
+
+                        <div id="${idLista}" style="display:none; font-size:12px; color:#444; background: #fafafa; padding: 8px; border-radius: 5px; margin-bottom: 10px; border: 1px solid #ddd;">
+                            ${p.itens.map(i => `• ${i.nome}`).join('<br>')}
+                            <div style="margin-top:5px; font-weight:bold">Total: R$ ${p.total.toFixed(2)}</div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;">
                             <button onclick="mudarStatus('${id}','preparando')" style="font-size:10px; padding:5px;">Preparo</button>
                             <button onclick="mudarStatus('${id}','entregue')" style="font-size:10px; padding:5px;">Entregue</button>
                             <button onclick="mudarStatus('${id}','finalizado')" style="font-size:10px; padding:5px; background:#fdd;">Fechar</button>
@@ -220,12 +217,17 @@ function ouvirPedidos() {
                     cont.appendChild(card);
                 }
             });
-            if (!temMeus) cont.innerHTML = "<p style='text-align:center; color:#999'>Sem pedidos ativos.</p>";
+            if (!temMeus) cont.innerHTML = "<p class='loading-msg'>Sem pedidos seus ativos.</p>";
         } else {
-            cont.innerHTML = "<p style='text-align:center; color:#999'>Sem pedidos no sistema.</p>";
+            cont.innerHTML = "<p class='loading-msg'>Sem pedidos no sistema.</p>";
         }
     });
 }
+
+window.toggleDetalhes = (id) => {
+    const el = document.getElementById(id);
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+};
 
 window.mudarStatus = async (id, st) => {
     if (st === 'finalizado') {
