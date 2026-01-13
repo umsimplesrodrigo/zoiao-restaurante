@@ -21,3 +21,58 @@ body { background-color: #f0f2f5; margin: 0; padding: 10px; }
     border-left: 6px solid #e67e22; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 .btn-confirmar { background: #27ae60; color: white; width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; }
+
+.cat-titulo {
+    background: #2c3e50;
+    color: white;
+    padding: 8px 15px;
+    border-radius: 5px;
+    margin-top: 20px;
+    font-size: 14px;
+    text-transform: uppercase;
+}
+
+.produto-btn {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    color: #333;
+    border: 1px solid #ddd;
+    border-left: 6px solid #27ae60;
+    margin-top: 5px;
+    text-align: left;
+    font-size: 14px;
+    padding: 12px;
+}
+
+#lista-pedido-ul {
+    list-style: none;
+    padding: 0;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+#lista-pedido-ul li {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+}
+
+#lista-pedido-ul li button {
+    width: auto;
+    padding: 2px 8px;
+    margin: 0;
+    background: none;
+    color: red;
+}
+
+.total-area {
+    font-size: 20px;
+    font-weight: bold;
+    text-align: right;
+    margin: 15px 0;
+    color: #27ae60;
+}

@@ -26,26 +26,22 @@
                 </div>
         </section>
 
-        <section id="tela-pedido" style="display:none">
-            <header>
-                <h2 id="mesa-selecionada-titulo">Mesa --</h2>
-                <button class="btn-cancelar" onclick="voltarParaMesas()">Voltar</button>
-            </header>
-            
-            <div class="card carrinho">
-                <h3>Itens Selecionados:</h3>
-                <ul id="lista-pedido-ul"></ul>
-                <div class="total-container">
-                    <strong>Total: R$ <span id="total-pedido">0,00</span></strong>
-                </div>
-                <button class="btn-confirmar" onclick="finalizarPedidoParaBanco()">Enviar Pedido</button>
-            </div>
+		<section id="tela-pedido" style="display:none">
+			<header>
+				<h2 id="mesa-selecionada-titulo">Mesa --</h2>
+				<button class="btn-cancelar" onclick="voltarParaMesas()" style="width: auto; padding: 5px 15px;">Voltar</button>
+			</header>
 
-            <div id="categorias-container">
-                </div>
-            <div id="produtos-container">
-                </div>
-        </section>
+			<div class="card" id="resumo-carrinho">
+				<h3>Pedido Atual:</h3>
+				<ul id="lista-pedido-ul"></ul>
+				<div class="total-area">Total: R$ <span id="total-pedido">0.00</span></div>
+				<button class="btn-confirmar" onclick="enviarPedidoFinal()">Enviar para Cozinha/Bar</button>
+			</div>
+
+			<div id="cardapio-itens">
+				</div>
+		</section>
     </div>
 
     <script type="module" src="app.js"></script>
