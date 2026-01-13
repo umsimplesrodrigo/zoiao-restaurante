@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Zoiao Bar - PDV Mobile</title>
+    <title>Zoiao Bar - PDV</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,28 +18,36 @@
             </div>
         </section>
 
-        <section id="tela-mesas" style="display:none">
+        <section id="tela-dashboard" style="display:none">
             <header class="main-header">
-                <div>Atendente: <strong id="user-display"></strong></div>
-                <button class="btn-sair" onclick="location.reload()">Sair</button>
+                <div>Olá, <strong id="user-display"></strong></div>
+                <button class="btn-sair" onclick="logout()">Sair</button>
             </header>
-            
-            <div id="tabs-setores" class="tabs-container"></div>
-            
-            <div class="grid-mesas" id="grid-mesas">
-                <p class="loading-msg">Selecione um setor acima</p>
+
+            <div class="tabs-container" id="tabs-principais" style="background: #eee; border-radius: 10px; margin-bottom: 15px;">
+                <button class="tab-btn active" style="width: 50%;" onclick="mudarAbaPrincipal('mesas', this)">Mesas</button>
+                <button class="tab-btn" style="width: 50%;" onclick="mudarAbaPrincipal('pedidos', this)">Meus Pedidos</button>
+            </div>
+
+            <div id="sub-mesas">
+                <div id="tabs-setores" class="tabs-container"></div>
+                <div class="grid-mesas" id="grid-mesas"></div>
+            </div>
+
+            <div id="sub-pedidos" style="display:none">
+                <div id="lista-pedidos-geral">
+                    <p class="loading-msg">Carregando pedidos ativos...</p>
+                </div>
             </div>
         </section>
 
         <section id="tela-pedido" style="display:none">
             <div class="carrinho-fixo card">
                 <div class="header-pedido">
-                    <button class="btn-voltar" onclick="voltarParaMesas()">← Voltar</button>
+                    <button class="btn-voltar" onclick="voltarParaDashboard()">← Voltar</button>
                     <h2 id="mesa-titulo">Mesa --</h2>
                 </div>
-                <ul id="lista-carrinho-ul">
-                    <li class="empty-msg">Nenhum item adicionado</li>
-                </ul>
+                <ul id="lista-carrinho-ul"></ul>
                 <div class="total-box">
                     <span>Total:</span>
                     <strong id="total-pedido">R$ 0,00</strong>
