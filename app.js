@@ -17,7 +17,7 @@ let carrinho = [];
 let dadosCardapio = null;
 let dadosMesas = null;
 
-// --- AUTO-LOGIN E CRIAÇÃO DE NÓ ---
+// --- SISTEMA DE LOGIN E REGISTRO ---
 window.onload = () => {
     const salvo = localStorage.getItem('atendente');
     if(salvo) {
@@ -28,16 +28,18 @@ window.onload = () => {
 
 window.fazerLogin = async function() {
     const nome = document.getElementById('nome-atendente').value;
-    if(!nome) return alert("Digite seu nome");
+    if(!nome) return alert("Por favor, digite seu nome.");
     
-    // Cria um slug (id limpo) para o atendente
+    // Estrutura do ID: "Rodrigo Oliveira" vira "rodrigo-oliveira"
     const slug = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '-');
     
     try {
-        // FORÇA A CRIAÇÃO DO NÓ ATENDENTES NO FIREBASE
-        await set(ref(db, 'atendentes/' + slug), {
+        // Grava no nó atendentes/id-do-usuario
+        await update(ref(db, 'atendentes/' + slug), {
             nome_exibicao: nome,
-            ultimo_acesso: new Date().toLocaleString()
+            slug: slug,
+            ultimo_acesso: new Date().toLocaleString(),
+            status: "online"
         });
 
         localStorage.setItem('atendente', nome);
@@ -48,7 +50,8 @@ window.fazerLogin = async function() {
         carregarDadosBase();
         ouvirPedidos();
     } catch (e) {
-        alert("Erro ao registrar no banco: " + e.message);
+        console.error("Erro ao salvar atendente:", e);
+        alert("Erro ao conectar com o banco. Verifique sua internet.");
     }
 };
 
@@ -57,7 +60,7 @@ window.logout = () => {
     location.reload();
 };
 
-// --- NAVEGAÇÃO ---
+// --- NAVEGAÇÃO E INTERFACE ---
 window.mudarAbaPrincipal = (aba, btn) => {
     document.querySelectorAll('#tabs-principais .tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
@@ -70,7 +73,7 @@ window.voltarParaDashboard = () => {
     document.getElementById('tela-dashboard').style.display = 'block';
 };
 
-// --- CARREGAMENTO DE MESAS E PRODUTOS ---
+// --- BUSCA DE DADOS ---
 async function carregarDadosBase() {
     const [snM, snP] = await Promise.all([get(ref(db, 'setores_mesas')), get(ref(db, 'produtos'))]);
     if(snM.exists()) { dadosMesas = snM.val(); montarSetores(); }
@@ -117,7 +120,8 @@ function renderizarGrid(s) {
 function montarCategorias() {
     const cont = document.getElementById('tabs-categorias');
     cont.innerHTML = "";
-    Object.keys(dadosCardapio).forEach((c, i) => {
+    const categorias = Object.keys(dadosCardapio);
+    categorias.forEach((c, i) => {
         const btn = document.createElement('button');
         btn.className = "tab-btn" + (i===0?" active":"");
         btn.innerText = c;
@@ -128,7 +132,7 @@ function montarCategorias() {
         };
         cont.appendChild(btn);
     });
-    renderizarProdutos(Object.keys(dadosCardapio)[0]);
+    renderizarProdutos(categorias[0]);
 }
 
 function renderizarProdutos(c) {
@@ -150,7 +154,7 @@ function atualizarCarrinho() {
     let total = 0;
     carrinho.forEach((item, i) => {
         total += item.preco;
-        ul.innerHTML += `<li style="display:flex; justify-content:space-between; padding:5px; border-bottom:1px solid #eee;">
+        ul.innerHTML += `<li style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee;">
             ${item.nome} <b onclick="removerItem(${i})" style="color:red; cursor:pointer;">X</b>
         </li>`;
     });
@@ -160,19 +164,24 @@ function atualizarCarrinho() {
 window.removerItem = (i) => { carrinho.splice(i,1); atualizarCarrinho(); };
 
 window.enviarPedidoFinal = async () => {
-    if(!carrinho.length) return alert("Adicione itens!");
-    await push(ref(db, 'pedidos'), {
-        mesa: document.getElementById('mesa-titulo').innerText,
-        atendente: localStorage.getItem('atendente'),
-        itens: carrinho,
-        status: "pendente",
-        hora: new Date().toLocaleTimeString()
-    });
-    alert("Pedido enviado!");
-    carrinho = []; atualizarCarrinho(); voltarParaDashboard();
+    if(!carrinho.length) return alert("Adicione itens ao pedido!");
+    try {
+        await push(ref(db, 'pedidos'), {
+            mesa: document.getElementById('mesa-titulo').innerText,
+            atendente: localStorage.getItem('atendente'),
+            itens: carrinho,
+            status: "pendente",
+            hora: new Date().toLocaleTimeString(),
+            total: carrinho.reduce((a, b) => a + b.preco, 0)
+        });
+        alert("Pedido enviado com sucesso!");
+        carrinho = []; atualizarCarrinho(); voltarParaDashboard();
+    } catch (e) {
+        alert("Erro ao enviar pedido.");
+    }
 };
 
-// --- MEUS PEDIDOS EM TEMPO REAL ---
+// --- LISTA DE PEDIDOS ATIVOS ---
 function ouvirPedidos() {
     onValue(ref(db, 'pedidos'), (snap) => {
         const cont = document.getElementById('lista-pedidos-geral');
@@ -183,26 +192,27 @@ function ouvirPedidos() {
                 const p = peds[id];
                 const card = document.createElement('div');
                 card.className = `card pedido-status-${p.status}`;
+                card.style.borderLeft = "6px solid " + (p.status === 'pendente' ? '#f1c40f' : p.status === 'preparando' ? '#3498db' : '#2ecc71');
                 card.innerHTML = `
                     <div style="display:flex; justify-content:space-between"><strong>${p.mesa}</strong> <small>${p.hora}</small></div>
-                    <div style="font-size:12px; color:#666">${p.itens.map(i => i.nome).join(', ')}</div>
-                    <div style="margin-top:10px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;">
-                        <button onclick="mudarStatus('${id}','preparando')" style="font-size:10px; padding:5px;">⏳ Prep.</button>
-                        <button onclick="mudarStatus('${id}','entregue')" style="font-size:10px; padding:5px;">✅ Entregue</button>
-                        <button onclick="mudarStatus('${id}','finalizado')" style="font-size:10px; padding:5px; background:#fdd; border:none; border-radius:4px;">🏁 Fechar</button>
+                    <div style="font-size:12px; margin:5px 0;">${p.itens.map(i => i.nome).join(', ')}</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px; margin-top:10px;">
+                        <button onclick="mudarStatus('${id}','preparando')" style="font-size:10px; padding:5px;">Preparo</button>
+                        <button onclick="mudarStatus('${id}','entregue')" style="font-size:10px; padding:5px;">Entregue</button>
+                        <button onclick="mudarStatus('${id}','finalizado')" style="font-size:10px; padding:5px; background:#ffebeb; border:1px solid #ffcccc;">Fechar</button>
                     </div>
                 `;
                 cont.appendChild(card);
             });
         } else {
-            cont.innerHTML = "<p class='loading-msg'>Nenhum pedido ativo.</p>";
+            cont.innerHTML = "<p style='text-align:center; color:#999;'>Nenhum pedido ativo no momento.</p>";
         }
     });
 }
 
 window.mudarStatus = async (id, st) => {
     if(st === 'finalizado') {
-        if(confirm("Deseja encerrar a mesa e remover o pedido?")) await remove(ref(db, `pedidos/${id}`));
+        if(confirm("Encerrar mesa e liberar conta?")) await remove(ref(db, `pedidos/${id}`));
     } else {
         await update(ref(db, `pedidos/${id}`), { status: st });
     }
