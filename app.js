@@ -152,67 +152,80 @@ function atualizarCarrinho() {
 
 window.removerItem = (i) => { carrinho.splice(i, 1); atualizarCarrinho(); };
 
-// --- LÓGICA DE ENVIO CORRIGIDA (AGRUPAMENTO REAL) ---
 window.enviarPedidoFinal = async () => {
-    if (!carrinho.length) return alert("Carrinho vazio!");
-    
+    if (!carrinho.length) return alert("Adicione itens antes de enviar!");
+
     const atendenteAtual = localStorage.getItem('atendente');
-    const mesaAtual = document.getElementById('mesa-titulo').innerText;
+    const mesaNome = document.getElementById('mesa-titulo').innerText;
     const dbRef = ref(db, 'pedidos');
 
     try {
-        // 1. Puxamos todos os pedidos para verificar se a mesa já está aberta
         const snapshot = await get(dbRef);
-        let pedidoExistenteId = null;
+        let pedidoIdExistente = null;
         let itensAnteriores = [];
 
         if (snapshot.exists()) {
             const todosPedidos = snapshot.val();
-            
-            // Procuramos um pedido que coincida com a MESA e que NÃO esteja finalizado
+            // Procuramos um pedido para a mesa que NÃO esteja 'finalizado'
+            // Isso garante que se a mesa for aberta de novo, será um ID novo.
             for (let id in todosPedidos) {
-                if (todosPedidos[id].mesa === mesaAtual && todosPedidos[id].status !== 'finalizado') {
-                    pedidoExistenteId = id;
+                if (todosPedidos[id].mesa === mesaNome && todosPedidos[id].status !== 'finalizado') {
+                    pedidoIdExistente = id;
                     itensAnteriores = todosPedidos[id].itens || [];
-                    break; 
+                    break;
                 }
             }
         }
 
-        if (pedidoExistenteId) {
-            // 2. SE ENCONTROU: Mesclamos os itens e atualizamos o pedido atual
-            console.log("Atualizando pedido existente: " + pedidoExistenteId);
-            const novosItensTotal = [...itensAnteriores, ...carrinho];
-            const novoValorTotal = novosItensTotal.reduce((acc, item) => acc + item.preco, 0);
+        if (pedidoIdExistente) {
+            // ATUALIZA o consumo do cliente atual naquela mesa
+            const novosItens = [...itensAnteriores, ...carrinho];
+            const novoTotal = novosItens.reduce((acc, item) => acc + item.preco, 0);
 
-            await update(ref(db, `pedidos/${pedidoExistenteId}`), {
-                itens: novosItensTotal,
-                total: novoValorTotal,
-                status: 'pendente', // Volta para pendente para a cozinha ver o novo item
+            await update(ref(db, `pedidos/${pedidoIdExistente}`), {
+                itens: novosItens,
+                total: novoTotal,
+                status: 'pendente', // Cozinha vê que chegou algo novo
                 ultima_atualizacao: new Date().toLocaleTimeString()
             });
-            alert("Itens adicionados ao pedido existente da " + mesaAtual);
+            alert("Itens adicionados à conta da mesa!");
         } else {
-            // 3. SE NÃO ENCONTROU: Cria um registro novo do zero
-            console.log("Criando novo pedido para a mesa.");
+            // NOVO CLIENTE na mesa (Novo ID único)
             await push(dbRef, {
-                mesa: mesaAtual,
+                mesa: mesaNome,
                 atendente: atendenteAtual,
                 itens: carrinho,
                 status: "pendente",
                 hora: new Date().toLocaleTimeString(),
-                total: carrinho.reduce((acc, item) => acc + item.preco, 0)
+                total: carrinho.reduce((acc, item) => acc + item.preco, 0),
+                criado_em: new Date().toISOString() // Para seu relatório futuro
             });
-            alert("Novo pedido aberto para a " + mesaAtual);
+            alert("Nova comanda aberta para esta mesa!");
         }
 
-        // Limpa tudo e volta
-        carrinho = []; 
-        atualizarCarrinho(); 
+        carrinho = [];
+        atualizarCarrinho();
         voltarParaDashboard();
     } catch (e) {
-        console.error("Erro no agrupamento:", e);
-        alert("Erro ao processar pedido. Verifique o console.");
+        console.error(e);
+        alert("Erro ao processar venda.");
+    }
+};
+
+// --- FUNÇÃO DE FECHAR CONTA (GERA HISTÓRICO) ---
+window.mudarStatus = async (id, st) => {
+    if (st === 'finalizado') {
+        if (confirm("Fechar conta desta mesa? Ela ficará livre para o próximo cliente.")) {
+            // Em vez de remover (remove), apenas mudamos o status.
+            // O pedido "some" da tela do garçom porque o filtro ignora 'finalizado'.
+            await update(ref(db, `pedidos/${id}`), { 
+                status: 'finalizado',
+                horario_fechamento: new Date().toLocaleTimeString()
+            });
+            alert("Mesa finalizada! Os dados estão salvos no histórico.");
+        }
+    } else {
+        await update(ref(db, `pedidos/${id}`), { status: st });
     }
 };
 
