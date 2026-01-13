@@ -152,7 +152,7 @@ function atualizarCarrinho() {
 
 window.removerItem = (i) => { carrinho.splice(i, 1); atualizarCarrinho(); };
 
-// --- LÓGICA DE ENVIO (AGRUPANDO NA MESMA MESA) ---
+// --- LÓGICA DE ENVIO CORRIGIDA (AGRUPAMENTO REAL) ---
 window.enviarPedidoFinal = async () => {
     if (!carrinho.length) return alert("Carrinho vazio!");
     
@@ -161,53 +161,58 @@ window.enviarPedidoFinal = async () => {
     const dbRef = ref(db, 'pedidos');
 
     try {
+        // 1. Puxamos todos os pedidos para verificar se a mesa já está aberta
         const snapshot = await get(dbRef);
         let pedidoExistenteId = null;
-        let itensAtuais = [];
+        let itensAnteriores = [];
 
-        // Busca se já existe um pedido aberto para esta mesa
         if (snapshot.exists()) {
             const todosPedidos = snapshot.val();
-            pedidoExistenteId = Object.keys(todosPedidos).find(id => 
-                todosPedidos[id].mesa === mesaAtual && 
-                todosPedidos[id].status !== 'finalizado'
-            );
-            if (pedidoExistenteId) {
-                itensAtuais = todosPedidos[pedidoExistenteId].itens || [];
+            
+            // Procuramos um pedido que coincida com a MESA e que NÃO esteja finalizado
+            for (let id in todosPedidos) {
+                if (todosPedidos[id].mesa === mesaAtual && todosPedidos[id].status !== 'finalizado') {
+                    pedidoExistenteId = id;
+                    itensAnteriores = todosPedidos[id].itens || [];
+                    break; 
+                }
             }
         }
 
         if (pedidoExistenteId) {
-            // ATUALIZA pedido existente
-            const novosItens = [...itensAtuais, ...carrinho];
-            const novoTotal = novosItens.reduce((a, b) => a + b.preco, 0);
-            
+            // 2. SE ENCONTROU: Mesclamos os itens e atualizamos o pedido atual
+            console.log("Atualizando pedido existente: " + pedidoExistenteId);
+            const novosItensTotal = [...itensAnteriores, ...carrinho];
+            const novoValorTotal = novosItensTotal.reduce((acc, item) => acc + item.preco, 0);
+
             await update(ref(db, `pedidos/${pedidoExistenteId}`), {
-                itens: novosItens,
-                total: novoTotal,
-                status: 'pendente', // Volta para pendente para a cozinha ver que chegou algo novo
+                itens: novosItensTotal,
+                total: novoValorTotal,
+                status: 'pendente', // Volta para pendente para a cozinha ver o novo item
                 ultima_atualizacao: new Date().toLocaleTimeString()
             });
-            alert("Itens adicionados à mesa!");
+            alert("Itens adicionados ao pedido existente da " + mesaAtual);
         } else {
-            // CRIA novo pedido
+            // 3. SE NÃO ENCONTROU: Cria um registro novo do zero
+            console.log("Criando novo pedido para a mesa.");
             await push(dbRef, {
                 mesa: mesaAtual,
                 atendente: atendenteAtual,
                 itens: carrinho,
                 status: "pendente",
                 hora: new Date().toLocaleTimeString(),
-                total: carrinho.reduce((a, b) => a + b.preco, 0)
+                total: carrinho.reduce((acc, item) => acc + item.preco, 0)
             });
-            alert("Pedido criado com sucesso!");
+            alert("Novo pedido aberto para a " + mesaAtual);
         }
 
+        // Limpa tudo e volta
         carrinho = []; 
         atualizarCarrinho(); 
         voltarParaDashboard();
     } catch (e) {
-        console.error(e);
-        alert("Erro ao processar pedido.");
+        console.error("Erro no agrupamento:", e);
+        alert("Erro ao processar pedido. Verifique o console.");
     }
 };
 
