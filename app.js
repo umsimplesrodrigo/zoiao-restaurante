@@ -30,7 +30,7 @@ window.onload = () => {
 window.fazerLogin = async function() {
     const campoNome = document.getElementById('nome-atendente');
     let nomeLimpo = campoNome.value.trim().replace(/\s+/g, ' ');
-    if (!nomeLimpo) return alert("Digite seu nome para entrar.");
+    if (!nomeLimpo) return alert("Digite seu nome.");
 
     const slug = nomeLimpo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '-');
 
@@ -46,7 +46,7 @@ window.fazerLogin = async function() {
         document.getElementById('tela-dashboard').style.display = 'block';
         carregarDadosBase();
         ouvirPedidos();
-    } catch (e) { alert("Erro de conexão."); }
+    } catch (e) { alert("Erro ao conectar."); }
 };
 
 window.logout = () => { localStorage.removeItem('atendente'); location.reload(); };
@@ -64,7 +64,7 @@ window.voltarParaDashboard = () => {
     document.getElementById('tela-dashboard').style.display = 'block';
 };
 
-// --- CARREGAMENTO ---
+// --- CARREGAMENTO E ORDENAÇÃO ---
 async function carregarDadosBase() {
     const [snM, snP] = await Promise.all([get(ref(db, 'setores_mesas')), get(ref(db, 'produtos'))]);
     if (snM.exists()) { dadosMesas = snM.val(); montarSetores(); }
@@ -92,16 +92,13 @@ function renderizarGrid(s) {
     const grid = document.getElementById('grid-mesas');
     grid.innerHTML = "";
     
-    // Convertemos o objeto de mesas em um array para poder ordenar
-    const mesasArray = [];
-    for (let id in dadosMesas[s]) {
-        mesasArray.push({ id, ...dadosMesas[s][id] });
-    }
+    // Transformar em array e ordenar numericamente de forma robusta
+    const mesasArray = Object.keys(dadosMesas[s]).map(id => ({ id, ...dadosMesas[s][id] }));
+    
+    mesasArray.sort((a, b) => {
+        return Number(a.numero) - Number(b.numero);
+    });
 
-    // Ordenação numérica baseada no campo 'numero'
-    mesasArray.sort((a, b) => parseInt(a.numero) - parseInt(b.numero));
-
-    // Renderizamos as mesas já ordenadas
     mesasArray.forEach(m => {
         const btn = document.createElement('button');
         btn.className = "mesa-btn";
@@ -120,7 +117,7 @@ function renderizarGrid(s) {
 function montarCategorias() {
     const cont = document.getElementById('tabs-categorias');
     cont.innerHTML = "";
-    Object.keys(dadosCardapio).forEach((c, i) => {
+    Object.keys(dadosCardapio).sort().forEach((c, i) => {
         const btn = document.createElement('button');
         btn.className = "tab-btn" + (i === 0 ? " active" : "");
         btn.innerText = c;
@@ -131,20 +128,21 @@ function montarCategorias() {
         };
         cont.appendChild(btn);
     });
-    renderizarProdutos(Object.keys(dadosCardapio)[0]);
+    renderizarProdutos(Object.keys(dadosCardapio).sort()[0]);
 }
 
 function renderizarProdutos(cat) {
     const cont = document.getElementById('produtos-container');
     cont.innerHTML = "";
-    for (let id in dadosCardapio[cat]) {
-        const p = dadosCardapio[cat][id];
+    const prods = dadosCardapio[cat];
+    Object.keys(prods).forEach(id => {
+        const p = prods[id];
         const btn = document.createElement('button');
         btn.className = "produto-btn";
-        btn.innerHTML = `<span>${p.nome}</span> <strong>R$ ${p.preco.toFixed(2)}</strong>`;
+        btn.innerHTML = `<span>${p.nome}</span> <strong>R$ ${Number(p.preco).toFixed(2)}</strong>`;
         btn.onclick = () => { carrinho.push(p); atualizarCarrinho(); };
         cont.appendChild(btn);
-    }
+    });
 }
 
 function atualizarCarrinho() {
@@ -152,9 +150,9 @@ function atualizarCarrinho() {
     ul.innerHTML = "";
     let total = 0;
     carrinho.forEach((item, i) => {
-        total += item.preco;
-        ul.innerHTML += `<li style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee;">
-            ${item.nome} <b onclick="removerItem(${i})" style="color:red; cursor:pointer">X</b>
+        total += Number(item.preco);
+        ul.innerHTML += `<li style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid #eee;">
+            ${item.nome} <button onclick="removerItem(${i})" style="background:none; border:none; color:red; font-weight:bold; cursor:pointer;">X</button>
         </li>`;
     });
     document.getElementById('total-pedido').innerText = `R$ ${total.toFixed(2)}`;
@@ -162,122 +160,84 @@ function atualizarCarrinho() {
 
 window.removerItem = (i) => { carrinho.splice(i, 1); atualizarCarrinho(); };
 
-// --- ENVIO COLABORATIVO (TODOS LANÇAM NA MESMA CONTA) ---
+// --- ENVIO COM AGRUPAMENTO (EVITA DUPLICADOS) ---
 window.enviarPedidoFinal = async () => {
     if (!carrinho.length) return alert("Carrinho vazio!");
-    
     const atendenteAtual = localStorage.getItem('atendente');
     const mesaNome = document.getElementById('mesa-titulo').innerText;
-    const dbRef = ref(db, 'pedidos');
-
+    
     try {
-        const snapshot = await get(dbRef);
-        let pedidoIdExistente = null;
+        const snapshot = await get(ref(db, 'pedidos'));
+        let idExistente = null;
         let itensAnteriores = [];
 
         if (snapshot.exists()) {
-            const todosPedidos = snapshot.val();
-            // Busca global pela mesa ocupada
-            for (let id in todosPedidos) {
-                if (todosPedidos[id].mesa === mesaNome && todosPedidos[id].status !== 'finalizado') {
-                    pedidoIdExistente = id;
-                    itensAnteriores = todosPedidos[id].itens || [];
+            const peds = snapshot.val();
+            for (let id in peds) {
+                if (peds[id].mesa === mesaNome && peds[id].status !== 'finalizado') {
+                    idExistente = id;
+                    itensAnteriores = peds[id].itens || [];
                     break;
                 }
             }
         }
 
-        if (pedidoIdExistente) {
+        if (idExistente) {
             const novosItens = [...itensAnteriores, ...carrinho];
-            await update(ref(db, `pedidos/${pedidoIdExistente}`), {
+            await update(ref(db, `pedidos/${idExistente}`), {
                 itens: novosItens,
-                total: novosItens.reduce((acc, i) => acc + i.preco, 0),
+                total: novosItens.reduce((acc, i) => acc + Number(i.preco), 0),
                 status: 'pendente',
-                ultimo_atendente: atendenteAtual,
+                atendente: atendenteAtual,
                 ultima_atualizacao: new Date().toLocaleTimeString()
             });
-            alert("Itens adicionados!");
         } else {
-            await push(dbRef, {
+            await push(ref(db, 'pedidos'), {
                 mesa: mesaNome,
-                atendente_abertura: atendenteAtual,
-                atendente: atendenteAtual, 
+                atendente: atendenteAtual,
                 itens: carrinho,
                 status: "pendente",
                 hora: new Date().toLocaleTimeString(),
-                total: carrinho.reduce((acc, i) => acc + i.preco, 0)
+                total: carrinho.reduce((acc, i) => acc + Number(i.preco), 0)
             });
-            alert("Mesa aberta!");
         }
-
+        alert("Pedido enviado!");
         carrinho = []; atualizarCarrinho(); voltarParaDashboard();
     } catch (e) { alert("Erro ao salvar."); }
 };
 
-// --- MONITORAMENTO GLOBAL (TODOS VEEM TUDO) ---
+// --- MONITORAMENTO GLOBAL (VISIBILIDADE TOTAL) ---
 function ouvirPedidos() {
     onValue(ref(db, 'pedidos'), (snap) => {
         const cont = document.getElementById('lista-pedidos-geral');
         cont.innerHTML = "";
         const peds = snap.val();
-        
         if (peds) {
-            let temAtivos = false;
             Object.keys(peds).forEach(id => {
                 const p = peds[id];
-                // REGRA: Mostra todos os pedidos que NÃO estão finalizados
                 if (p.status !== 'finalizado') {
-                    temAtivos = true;
-                    const idLista = `detalhes-${id}`;
                     const card = document.createElement('div');
                     card.className = `card pedido-status-${p.status}`;
                     card.innerHTML = `
-                        <div style="display:flex; justify-content:space-between">
-                            <strong>${p.mesa}</strong> 
-                            <small>${p.hora}</small>
-                        </div>
-                        <div style="font-size: 11px; color: #666; margin-top: 4px;">Atendente: ${p.atendente}</div>
-                        
-                        <button onclick="toggleDetalhes('${idLista}')" style="width:100%; margin: 10px 0; padding: 8px; font-size: 11px; background: #f8f8f8; border:1px solid #ddd; border-radius:8px; cursor:pointer">
-                            📋 VER ITENS (${p.itens.length})
-                        </button>
-
-                        <div id="${idLista}" style="display:none; font-size:13px; color:#444; background: #fafafa; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #eee;">
+                        <div style="display:flex; justify-content:space-between"><strong>${p.mesa}</strong> <small>${p.hora}</small></div>
+                        <div style="font-size:11px; color:#666">Atendente: ${p.atendente}</div>
+                        <div style="margin:10px 0; font-size:13px; background:#f9f9f9; padding:8px; border-radius:5px;">
                             ${p.itens.map(i => `• ${i.nome}`).join('<br>')}
-                            <hr style="border:0; border-top:1px solid #ddd; margin: 8px 0;">
-                            <strong>Total: R$ ${p.total.toFixed(2)}</strong>
+                            <div style="margin-top:5px; border-top:1px solid #ddd; padding-top:5px"><strong>Total: R$ ${Number(p.total).toFixed(2)}</strong></div>
                         </div>
-
-                        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
-                            <button onclick="mudarStatus('${id}','preparando')" style="font-size:11px; padding:10px; border-radius:8px; background:#e3f2fd; color:#1976d2; border:none; font-weight:bold;">Preparo</button>
-                            <button onclick="mudarStatus('${id}','entregue')" style="font-size:11px; padding:10px; border-radius:8px; background:#e8f5e9; color:#2e7d32; border:none; font-weight:bold;">Entregue</button>
-                            <button onclick="mudarStatus('${id}','finalizado')" style="font-size:11px; padding:10px; border-radius:8px; background:#ffebee; color:#c62828; border:none; font-weight:bold;">Fechar</button>
+                        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;">
+                            <button onclick="mudarStatus('${id}','preparando')" style="font-size:10px; padding:8px; cursor:pointer">Preparo</button>
+                            <button onclick="mudarStatus('${id}','entregue')" style="font-size:10px; padding:8px; cursor:pointer">Entregue</button>
+                            <button onclick="mudarStatus('${id}','finalizado')" style="font-size:10px; padding:8px; background:#fee; border:1px solid #fcc; cursor:pointer">Fechar</button>
                         </div>`;
                     cont.appendChild(card);
                 }
             });
-            if (!temAtivos) cont.innerHTML = "<p class='loading-msg'>Nenhuma mesa ocupada no momento.</p>";
-        } else {
-            cont.innerHTML = "<p class='loading-msg'>Nenhum pedido no sistema.</p>";
         }
     });
 }
 
-window.toggleDetalhes = (id) => {
-    const el = document.getElementById(id);
-    el.style.display = el.style.display === 'none' ? 'block' : 'none';
-};
-
 window.mudarStatus = async (id, st) => {
-    if (st === 'finalizado') {
-        if (confirm("Fechar conta? A mesa será liberada e o registro irá para o histórico.")) {
-            await update(ref(db, `pedidos/${id}`), { 
-                status: 'finalizado',
-                fechado_por: localStorage.getItem('atendente'),
-                horario_fechamento: new Date().toLocaleString()
-            });
-        }
-    } else {
-        await update(ref(db, `pedidos/${id}`), { status: st });
-    }
+    if (st === 'finalizado' && !confirm("Fechar conta?")) return;
+    await update(ref(db, `pedidos/${id}`), { status: st });
 };
