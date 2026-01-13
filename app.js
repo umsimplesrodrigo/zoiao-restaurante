@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, set, get, push, update, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-// Configurações do seu Firebase
 const firebaseConfig = {
     apiKey: "AIzaSyCUVjaNWqQcax68Vvk8VoBJGfoiL98-L88",
     authDomain: "zoiao-restaurante.firebaseapp.com",
@@ -31,7 +30,7 @@ window.onload = () => {
 window.fazerLogin = async function() {
     const campoNome = document.getElementById('nome-atendente');
     let nomeLimpo = campoNome.value.trim().replace(/\s+/g, ' ');
-    if (!nomeLimpo) return alert("Por favor, digite seu nome.");
+    if (!nomeLimpo) return alert("Digite seu nome para entrar.");
 
     const slug = nomeLimpo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '-');
 
@@ -47,13 +46,10 @@ window.fazerLogin = async function() {
         document.getElementById('tela-dashboard').style.display = 'block';
         carregarDadosBase();
         ouvirPedidos();
-    } catch (e) { alert("Erro de conexão com o banco de dados."); }
+    } catch (e) { alert("Erro de conexão."); }
 };
 
-window.logout = () => {
-    localStorage.removeItem('atendente');
-    location.reload();
-};
+window.logout = () => { localStorage.removeItem('atendente'); location.reload(); };
 
 // --- NAVEGAÇÃO ---
 window.mudarAbaPrincipal = (aba, btn) => {
@@ -68,7 +64,7 @@ window.voltarParaDashboard = () => {
     document.getElementById('tela-dashboard').style.display = 'block';
 };
 
-// --- CARREGAMENTO DE DADOS ---
+// --- CARREGAMENTO ---
 async function carregarDadosBase() {
     const [snM, snP] = await Promise.all([get(ref(db, 'setores_mesas')), get(ref(db, 'produtos'))]);
     if (snM.exists()) { dadosMesas = snM.val(); montarSetores(); }
@@ -148,7 +144,7 @@ function atualizarCarrinho() {
     carrinho.forEach((item, i) => {
         total += item.preco;
         ul.innerHTML += `<li style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee;">
-            ${item.nome} <b onclick="removerItem(${i})" style="color:red; cursor:pointer; padding: 0 5px;">X</b>
+            ${item.nome} <b onclick="removerItem(${i})" style="color:red; cursor:pointer">X</b>
         </li>`;
     });
     document.getElementById('total-pedido').innerText = `R$ ${total.toFixed(2)}`;
@@ -156,9 +152,9 @@ function atualizarCarrinho() {
 
 window.removerItem = (i) => { carrinho.splice(i, 1); atualizarCarrinho(); };
 
-// --- ENVIO COM BUSCA GLOBAL (AGRUPA QUALQUER ATENDENTE) ---
+// --- ENVIO COLABORATIVO (TODOS LANÇAM NA MESMA CONTA) ---
 window.enviarPedidoFinal = async () => {
-    if (!carrinho.length) return alert("O carrinho está vazio!");
+    if (!carrinho.length) return alert("Carrinho vazio!");
     
     const atendenteAtual = localStorage.getItem('atendente');
     const mesaNome = document.getElementById('mesa-titulo').innerText;
@@ -171,7 +167,7 @@ window.enviarPedidoFinal = async () => {
 
         if (snapshot.exists()) {
             const todosPedidos = snapshot.val();
-            // Procura em todos os pedidos um que seja da mesma mesa e esteja aberto
+            // Busca global pela mesa ocupada
             for (let id in todosPedidos) {
                 if (todosPedidos[id].mesa === mesaNome && todosPedidos[id].status !== 'finalizado') {
                     pedidoIdExistente = id;
@@ -182,50 +178,46 @@ window.enviarPedidoFinal = async () => {
         }
 
         if (pedidoIdExistente) {
-            // Se a mesa já existe, faz UPDATE (Não cria card novo)
             const novosItens = [...itensAnteriores, ...carrinho];
             await update(ref(db, `pedidos/${pedidoIdExistente}`), {
                 itens: novosItens,
                 total: novosItens.reduce((acc, i) => acc + i.preco, 0),
-                status: 'pendente', // Avisa a cozinha
-                atendente: atendenteAtual, // O card passa para quem fez o último lançamento
+                status: 'pendente',
+                ultimo_atendente: atendenteAtual,
                 ultima_atualizacao: new Date().toLocaleTimeString()
             });
-            alert("Itens adicionados à conta!");
+            alert("Itens adicionados!");
         } else {
-            // Se a mesa está vazia, faz PUSH (Cria nova conta)
             await push(dbRef, {
                 mesa: mesaNome,
+                atendente_abertura: atendenteAtual,
                 atendente: atendenteAtual, 
                 itens: carrinho,
                 status: "pendente",
                 hora: new Date().toLocaleTimeString(),
                 total: carrinho.reduce((acc, i) => acc + i.preco, 0)
             });
-            alert("Mesa aberta com sucesso!");
+            alert("Mesa aberta!");
         }
 
-        carrinho = []; 
-        atualizarCarrinho(); 
-        voltarParaDashboard();
-    } catch (e) { alert("Erro ao salvar no banco de dados."); }
+        carrinho = []; atualizarCarrinho(); voltarParaDashboard();
+    } catch (e) { alert("Erro ao salvar."); }
 };
 
-// --- MONITORAMENTO ---
+// --- MONITORAMENTO GLOBAL (TODOS VEEM TUDO) ---
 function ouvirPedidos() {
-    const atendenteLogado = localStorage.getItem('atendente');
     onValue(ref(db, 'pedidos'), (snap) => {
         const cont = document.getElementById('lista-pedidos-geral');
         cont.innerHTML = "";
         const peds = snap.val();
         
         if (peds) {
-            let temMeus = false;
+            let temAtivos = false;
             Object.keys(peds).forEach(id => {
                 const p = peds[id];
-                // Mostra apenas pedidos ativos onde você é o responsável atual
-                if (p.atendente === atendenteLogado && p.status !== 'finalizado') {
-                    temMeus = true;
+                // REGRA: Mostra todos os pedidos que NÃO estão finalizados
+                if (p.status !== 'finalizado') {
+                    temAtivos = true;
                     const idLista = `detalhes-${id}`;
                     const card = document.createElement('div');
                     card.className = `card pedido-status-${p.status}`;
@@ -234,8 +226,9 @@ function ouvirPedidos() {
                             <strong>${p.mesa}</strong> 
                             <small>${p.hora}</small>
                         </div>
+                        <div style="font-size: 11px; color: #666; margin-top: 4px;">Atendente: ${p.atendente}</div>
                         
-                        <button onclick="toggleDetalhes('${idLista}')" style="width:100%; margin: 10px 0; padding: 8px; font-size: 11px; background: #f0f0f0; border:1px solid #ddd; border-radius:8px; cursor:pointer">
+                        <button onclick="toggleDetalhes('${idLista}')" style="width:100%; margin: 10px 0; padding: 8px; font-size: 11px; background: #f8f8f8; border:1px solid #ddd; border-radius:8px; cursor:pointer">
                             📋 VER ITENS (${p.itens.length})
                         </button>
 
@@ -253,9 +246,9 @@ function ouvirPedidos() {
                     cont.appendChild(card);
                 }
             });
-            if (!temMeus) cont.innerHTML = "<p class='loading-msg'>Nenhum pedido sob sua responsabilidade no momento.</p>";
+            if (!temAtivos) cont.innerHTML = "<p class='loading-msg'>Nenhuma mesa ocupada no momento.</p>";
         } else {
-            cont.innerHTML = "<p class='loading-msg'>Nenhum pedido ativo no sistema.</p>";
+            cont.innerHTML = "<p class='loading-msg'>Nenhum pedido no sistema.</p>";
         }
     });
 }
@@ -267,9 +260,10 @@ window.toggleDetalhes = (id) => {
 
 window.mudarStatus = async (id, st) => {
     if (st === 'finalizado') {
-        if (confirm("Deseja fechar a conta desta mesa? Ela ficará livre para o próximo cliente.")) {
+        if (confirm("Fechar conta? A mesa será liberada e o registro irá para o histórico.")) {
             await update(ref(db, `pedidos/${id}`), { 
                 status: 'finalizado',
+                fechado_por: localStorage.getItem('atendente'),
                 horario_fechamento: new Date().toLocaleString()
             });
         }
