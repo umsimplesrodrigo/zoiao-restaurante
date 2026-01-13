@@ -17,7 +17,7 @@ let carrinho = [];
 let dadosCardapio = null;
 let dadosMesas = null;
 
-// --- AUTO-LOGIN E CRIAÇÃO DE ATENDENTE ---
+// --- AUTO-LOGIN E CRIAÇÃO DE NÓ ---
 window.onload = () => {
     const salvo = localStorage.getItem('atendente');
     if(salvo) {
@@ -30,21 +30,26 @@ window.fazerLogin = async function() {
     const nome = document.getElementById('nome-atendente').value;
     if(!nome) return alert("Digite seu nome");
     
-    const slug = nome.toLowerCase().replace(/\s+/g, '');
+    // Cria um slug (id limpo) para o atendente
+    const slug = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '-');
     
-    // REGISTRA O ATENDENTE NO BANCO (CRIA A TABELA SE NÃO EXISTIR)
-    await update(ref(db, `atendentes/${slug}`), {
-        nome_exibicao: nome,
-        ultimo_acesso: new Date().toLocaleString()
-    });
+    try {
+        // FORÇA A CRIAÇÃO DO NÓ ATENDENTES NO FIREBASE
+        await set(ref(db, 'atendentes/' + slug), {
+            nome_exibicao: nome,
+            ultimo_acesso: new Date().toLocaleString()
+        });
 
-    localStorage.setItem('atendente', nome);
-    document.getElementById('user-display').innerText = nome;
-    document.getElementById('tela-login').style.display = 'none';
-    document.getElementById('tela-dashboard').style.display = 'block';
-    
-    carregarDadosBase();
-    ouvirPedidos();
+        localStorage.setItem('atendente', nome);
+        document.getElementById('user-display').innerText = nome;
+        document.getElementById('tela-login').style.display = 'none';
+        document.getElementById('tela-dashboard').style.display = 'block';
+        
+        carregarDadosBase();
+        ouvirPedidos();
+    } catch (e) {
+        alert("Erro ao registrar no banco: " + e.message);
+    }
 };
 
 window.logout = () => {
@@ -65,7 +70,7 @@ window.voltarParaDashboard = () => {
     document.getElementById('tela-dashboard').style.display = 'block';
 };
 
-// --- CARREGAMENTO ---
+// --- CARREGAMENTO DE MESAS E PRODUTOS ---
 async function carregarDadosBase() {
     const [snM, snP] = await Promise.all([get(ref(db, 'setores_mesas')), get(ref(db, 'produtos'))]);
     if(snM.exists()) { dadosMesas = snM.val(); montarSetores(); }
@@ -75,7 +80,8 @@ async function carregarDadosBase() {
 function montarSetores() {
     const cont = document.getElementById('tabs-setores');
     cont.innerHTML = "";
-    Object.keys(dadosMesas).forEach((s, i) => {
+    const setores = Object.keys(dadosMesas);
+    setores.forEach((s, i) => {
         const btn = document.createElement('button');
         btn.className = "tab-btn" + (i===0?" active":"");
         btn.innerText = s;
@@ -86,7 +92,7 @@ function montarSetores() {
         };
         cont.appendChild(btn);
     });
-    renderizarGrid(Object.keys(dadosMesas)[0]);
+    renderizarGrid(setores[0]);
 }
 
 function renderizarGrid(s) {
@@ -144,16 +150,17 @@ function atualizarCarrinho() {
     let total = 0;
     carrinho.forEach((item, i) => {
         total += item.preco;
-        ul.innerHTML += `<li>${item.nome} <span>R$ ${item.preco.toFixed(2)} <b onclick="removerItem(${i})" style="color:red; cursor:pointer"> X</b></span></li>`;
+        ul.innerHTML += `<li style="display:flex; justify-content:space-between; padding:5px; border-bottom:1px solid #eee;">
+            ${item.nome} <b onclick="removerItem(${i})" style="color:red; cursor:pointer;">X</b>
+        </li>`;
     });
     document.getElementById('total-pedido').innerText = `R$ ${total.toFixed(2)}`;
 }
 
 window.removerItem = (i) => { carrinho.splice(i,1); atualizarCarrinho(); };
 
-// --- CRIAÇÃO DE PEDIDO (CRIA A TABELA AO ENVIAR) ---
 window.enviarPedidoFinal = async () => {
-    if(!carrinho.length) return alert("Vazio!");
+    if(!carrinho.length) return alert("Adicione itens!");
     await push(ref(db, 'pedidos'), {
         mesa: document.getElementById('mesa-titulo').innerText,
         atendente: localStorage.getItem('atendente'),
@@ -165,6 +172,7 @@ window.enviarPedidoFinal = async () => {
     carrinho = []; atualizarCarrinho(); voltarParaDashboard();
 };
 
+// --- MEUS PEDIDOS EM TEMPO REAL ---
 function ouvirPedidos() {
     onValue(ref(db, 'pedidos'), (snap) => {
         const cont = document.getElementById('lista-pedidos-geral');
@@ -176,25 +184,25 @@ function ouvirPedidos() {
                 const card = document.createElement('div');
                 card.className = `card pedido-status-${p.status}`;
                 card.innerHTML = `
-                    <strong>${p.mesa}</strong> - ${p.status}
-                    <div style="font-size:12px">${p.itens.map(i => i.nome).join(', ')}</div>
-                    <div style="margin-top:10px">
-                        <button onclick="mudarStatus('${id}','preparando')">⏳ Prep.</button>
-                        <button onclick="mudarStatus('${id}','entregue')">✅ Entregue</button>
-                        <button onclick="mudarStatus('${id}','finalizado')">🏁 Fechar</button>
+                    <div style="display:flex; justify-content:space-between"><strong>${p.mesa}</strong> <small>${p.hora}</small></div>
+                    <div style="font-size:12px; color:#666">${p.itens.map(i => i.nome).join(', ')}</div>
+                    <div style="margin-top:10px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;">
+                        <button onclick="mudarStatus('${id}','preparando')" style="font-size:10px; padding:5px;">⏳ Prep.</button>
+                        <button onclick="mudarStatus('${id}','entregue')" style="font-size:10px; padding:5px;">✅ Entregue</button>
+                        <button onclick="mudarStatus('${id}','finalizado')" style="font-size:10px; padding:5px; background:#fdd; border:none; border-radius:4px;">🏁 Fechar</button>
                     </div>
                 `;
                 cont.appendChild(card);
             });
         } else {
-            cont.innerHTML = "<p>Nenhum pedido ativo.</p>";
+            cont.innerHTML = "<p class='loading-msg'>Nenhum pedido ativo.</p>";
         }
     });
 }
 
 window.mudarStatus = async (id, st) => {
     if(st === 'finalizado') {
-        if(confirm("Fechar conta?")) await remove(ref(db, `pedidos/${id}`));
+        if(confirm("Deseja encerrar a mesa e remover o pedido?")) await remove(ref(db, `pedidos/${id}`));
     } else {
         await update(ref(db, `pedidos/${id}`), { status: st });
     }
