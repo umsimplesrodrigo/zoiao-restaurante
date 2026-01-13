@@ -1,24 +1,23 @@
-* { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-body { background-color: #eef2f3; margin: 0; display: flex; justify-content: center; }
-.container { width: 100%; max-width: 450px; padding: 15px; }
+* { box-sizing: border-box; font-family: sans-serif; }
+body { background-color: #f0f2f5; margin: 0; padding: 10px; }
+.container { max-width: 500px; margin: auto; }
 
-.card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-h1 { color: #2c3e50; text-align: center; margin-bottom: 5px; }
-p { text-align: center; color: #7f8c8d; margin-bottom: 20px; }
+.card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
 
-input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
-.row { display: flex; gap: 10px; }
-.row div { flex: 1; }
-
-button { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; margin-top: 10px; }
-button:active { transform: scale(0.98); }
-
-.btn-confirmar { background-color: #27ae60; color: white; }
-.btn-cancelar { background-color: #bdc3c7; color: #333; }
-.btn-sair { background: #e74c3c; color: white; padding: 5px 10px; width: auto; font-size: 12px; }
-
-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: white; padding: 10px; border-radius: 8px; }
-
+/* Grid de Mesas */
 .grid-mesas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.mesa-btn { background: #3498db; color: white; height: 80px; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-weight: bold; font-size: 18px; box-shadow: 0 4px 0 #2980b9; }
-.mesa-btn:active { box-shadow: none; transform: translateY(4px); }
+.mesa-btn { background: #3498db; color: white; height: 70px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: bold; }
+
+/* Carrinho */
+#lista-pedido-ul { list-style: none; padding: 0; }
+#lista-pedido-ul li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+.total-container { text-align: right; font-size: 20px; margin: 15px 0; color: #27ae60; }
+
+/* Cardápio */
+.cat-btn { background: #e67e22; color: white; padding: 10px; margin: 5px; border-radius: 5px; border: none; font-size: 14px; }
+.prod-item { 
+    background: white; padding: 15px; margin: 8px 0; border-radius: 8px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-left: 6px solid #e67e22; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.btn-confirmar { background: #27ae60; color: white; width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; }

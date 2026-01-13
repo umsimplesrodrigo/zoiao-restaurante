@@ -12,9 +12,8 @@
         <section id="tela-login">
             <div class="card">
                 <h1>🍻 Zoiao Bar</h1>
-                <p>Identifique-se para começar</p>
-                <input type="text" id="nome-atendente" placeholder="Seu nome (ex: João)" autocomplete="off">
-                <button onclick="fazerLogin()">Entrar no Sistema</button>
+                <input type="text" id="nome-atendente" placeholder="Nome do Atendente" autocomplete="off">
+                <button onclick="fazerLogin()">Entrar</button>
             </div>
         </section>
 
@@ -23,78 +22,32 @@
                 <span>Atendente: <strong id="user-display"></strong></span>
                 <button class="btn-sair" onclick="location.reload()">Sair</button>
             </header>
-            
-            <div class="grid-mesas">
-                <script>
-                    for(let i=1; i<=12; i++) {
-                        document.write(`<div class="mesa-btn" onclick="abrirPedido(${i})">Mesa ${i}</div>`);
-                    }
-                </script>
-            </div>
+            <div class="grid-mesas" id="grid-mesas-container">
+                </div>
         </section>
 
         <section id="tela-pedido" style="display:none">
-            <h2 id="mesa-selecionada-titulo">Mesa --</h2>
-            
-            <div class="card">
-                <label>Item:</label>
-                <input type="text" id="item-nome" placeholder="Ex: Cerveja Original">
-                
-                <div class="row">
-                    <div>
-                        <label>Qtd:</label>
-                        <input type="number" id="item-qtd" value="1" min="1">
-                    </div>
-                    <div>
-                        <label>Preço Unit.:</label>
-                        <input type="number" id="item-preco" placeholder="8.50" step="0.01">
-                    </div>
-                </div>
-
-                <button class="btn-confirmar" onclick="enviarPedidoFinal()">Enviar Pedido</button>
+            <header>
+                <h2 id="mesa-selecionada-titulo">Mesa --</h2>
                 <button class="btn-cancelar" onclick="voltarParaMesas()">Voltar</button>
+            </header>
+            
+            <div class="card carrinho">
+                <h3>Itens Selecionados:</h3>
+                <ul id="lista-pedido-ul"></ul>
+                <div class="total-container">
+                    <strong>Total: R$ <span id="total-pedido">0,00</span></strong>
+                </div>
+                <button class="btn-confirmar" onclick="finalizarPedidoParaBanco()">Enviar Pedido</button>
             </div>
+
+            <div id="categorias-container">
+                </div>
+            <div id="produtos-container">
+                </div>
         </section>
     </div>
 
     <script type="module" src="app.js"></script>
-
-    <script>
-        // Funções de UI (Navegação)
-        function abrirPedido(numero) {
-            document.getElementById('mesa-selecionada-titulo').innerText = "Mesa " + numero;
-            document.getElementById('mesa-selecionada-titulo').dataset.numero = numero;
-            document.getElementById('tela-mesas').style.display = 'none';
-            document.getElementById('tela-pedido').style.display = 'block';
-        }
-
-        function voltarParaMesas() {
-            document.getElementById('tela-pedido').style.display = 'none';
-            document.getElementById('tela-mesas').style.display = 'block';
-        }
-
-        async function enviarPedidoFinal() {
-            const mesa = document.getElementById('mesa-selecionada-titulo').dataset.numero;
-            const item = document.getElementById('item-nome').value;
-            const qtd = document.getElementById('item-qtd').value;
-            const preco = document.getElementById('item-preco').value;
-
-            if(!item || !qtd || !preco) {
-                alert("Por favor, preencha todos os campos!");
-                return;
-            }
-
-            const listaItens = [{ nome: item, qtd: parseInt(qtd), preco: parseFloat(preco) }];
-            const total = (parseInt(qtd) * parseFloat(preco)).toFixed(2);
-
-            // Chama a função global definida no app.js
-            await window.salvarPedido(mesa, listaItens, total);
-            
-            // Limpa e volta
-            document.getElementById('item-nome').value = "";
-            document.getElementById('item-preco').value = "";
-            voltarParaMesas();
-        }
-    </script>
 </body>
 </html>
