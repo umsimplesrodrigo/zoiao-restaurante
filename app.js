@@ -17,7 +17,7 @@ let carrinho = [];
 let dadosCardapio = null;
 let dadosMesas = null;
 
-// --- INICIALIZAÇÃO E AUTO-LOGIN ---
+// --- AUTO-LOGIN ---
 window.onload = () => {
     const salvo = localStorage.getItem('atendente');
     if(salvo) {
@@ -33,6 +33,7 @@ window.fazerLogin = function() {
     document.getElementById('user-display').innerText = nome;
     document.getElementById('tela-login').style.display = 'none';
     document.getElementById('tela-dashboard').style.display = 'block';
+    
     carregarDadosBase();
     ouvirPedidos();
 };
@@ -55,17 +56,38 @@ window.voltarParaDashboard = () => {
     document.getElementById('tela-dashboard').style.display = 'block';
 };
 
-// --- DADOS E MESAS ---
+// --- CARREGAMENTO DE DADOS (COM VERIFICAÇÃO DE EXISTÊNCIA) ---
 async function carregarDadosBase() {
-    const [snM, snP] = await Promise.all([get(ref(db, 'setores_mesas')), get(ref(db, 'produtos'))]);
-    if(snM.exists()) { dadosMesas = snM.val(); montarSetores(); }
-    if(snP.exists()) { dadosCardapio = snP.val(); montarCategorias(); }
+    try {
+        const [snM, snP] = await Promise.all([
+            get(ref(db, 'setores_mesas')), 
+            get(ref(db, 'produtos'))
+        ]);
+        
+        if(snM.exists()) { 
+            dadosMesas = snM.val(); 
+            montarSetores(); 
+        } else {
+            document.getElementById('grid-mesas').innerHTML = "<p class='loading-msg'>Nenhum setor/mesa cadastrado. Use o script Python.</p>";
+        }
+
+        if(snP.exists()) { 
+            dadosCardapio = snP.val(); 
+            montarCategorias(); 
+        } else {
+            document.getElementById('produtos-container').innerHTML = "<p class='loading-msg'>Cardápio vazio no banco.</p>";
+        }
+    } catch (e) {
+        console.error("Erro ao carregar dados:", e);
+    }
 }
 
+// --- LÓGICA DE MESAS ---
 function montarSetores() {
     const cont = document.getElementById('tabs-setores');
     cont.innerHTML = "";
-    Object.keys(dadosMesas).forEach((s, i) => {
+    const setores = Object.keys(dadosMesas);
+    setores.forEach((s, i) => {
         const btn = document.createElement('button');
         btn.className = "tab-btn" + (i===0?" active":"");
         btn.innerText = s;
@@ -76,14 +98,15 @@ function montarSetores() {
         };
         cont.appendChild(btn);
     });
-    renderizarGrid(Object.keys(dadosMesas)[0]);
+    renderizarGrid(setores[0]);
 }
 
 function renderizarGrid(s) {
     const grid = document.getElementById('grid-mesas');
     grid.innerHTML = "";
-    for(let id in dadosMesas[s]) {
-        const m = dadosMesas[s][id];
+    const mesas = dadosMesas[s];
+    for(let id in mesas) {
+        const m = mesas[id];
         const btn = document.createElement('button');
         btn.className = "mesa-btn";
         btn.innerText = "Mesa " + m.numero;
@@ -91,16 +114,19 @@ function renderizarGrid(s) {
             document.getElementById('mesa-titulo').innerText = s + " - Mesa " + m.numero;
             document.getElementById('tela-dashboard').style.display = 'none';
             document.getElementById('tela-pedido').style.display = 'block';
+            carrinho = [];
+            atualizarCarrinho();
         };
         grid.appendChild(btn);
     }
 }
 
-// --- CARDÁPIO E PEDIDOS ---
+// --- CARDÁPIO ---
 function montarCategorias() {
     const cont = document.getElementById('tabs-categorias');
     cont.innerHTML = "";
-    Object.keys(dadosCardapio).forEach((c, i) => {
+    const categorias = Object.keys(dadosCardapio);
+    categorias.forEach((c, i) => {
         const btn = document.createElement('button');
         btn.className = "tab-btn" + (i===0?" active":"");
         btn.innerText = c;
@@ -111,14 +137,15 @@ function montarCategorias() {
         };
         cont.appendChild(btn);
     });
-    renderizarProdutos(Object.keys(dadosCardapio)[0]);
+    renderizarProdutos(categorias[0]);
 }
 
 function renderizarProdutos(c) {
     const cont = document.getElementById('produtos-container');
     cont.innerHTML = "";
-    for(let id in dadosCardapio[c]) {
-        const p = dadosCardapio[c][id];
+    const itens = dadosCardapio[c];
+    for(let id in itens) {
+        const p = itens[id];
         const btn = document.createElement('button');
         btn.className = "produto-btn";
         btn.innerHTML = `<span>${p.nome}</span> <strong>R$ ${p.preco.toFixed(2)}</strong>`;
@@ -127,13 +154,14 @@ function renderizarProdutos(c) {
     }
 }
 
+// --- CARRINHO ---
 function atualizarCarrinho() {
     const ul = document.getElementById('lista-carrinho-ul');
     ul.innerHTML = "";
     let total = 0;
     carrinho.forEach((item, i) => {
         total += item.preco;
-        ul.innerHTML += `<li>${item.nome} <b onclick="removerItem(${i})" style="color:red">X</b></li>`;
+        ul.innerHTML += `<li>${item.nome} <span>R$ ${item.preco.toFixed(2)} <b onclick="removerItem(${i})" style="color:red; margin-left:10px; cursor:pointer">X</b></span></li>`;
     });
     document.getElementById('total-pedido').innerText = `R$ ${total.toFixed(2)}`;
 }
@@ -141,47 +169,68 @@ function atualizarCarrinho() {
 window.removerItem = (i) => { carrinho.splice(i,1); atualizarCarrinho(); };
 
 window.enviarPedidoFinal = async () => {
-    if(!carrinho.length) return alert("Vazio!");
-    await push(ref(db, 'pedidos'), {
-        mesa: document.getElementById('mesa-titulo').innerText,
-        atendente: localStorage.getItem('atendente'),
-        itens: carrinho,
-        status: "pendente",
-        hora: new Date().toLocaleTimeString()
-    });
-    alert("Pedido Enviado!");
-    carrinho = []; atualizarCarrinho(); voltarParaDashboard();
+    if(!carrinho.length) return alert("Adicione itens!");
+    const mesa = document.getElementById('mesa-titulo').innerText;
+    const atendente = localStorage.getItem('atendente');
+    
+    try {
+        await push(ref(db, 'pedidos'), {
+            mesa,
+            atendente,
+            itens: carrinho,
+            total: carrinho.reduce((a,b) => a+b.preco, 0),
+            status: "pendente",
+            hora: new Date().toLocaleTimeString()
+        });
+        alert("Pedido Enviado para a Cozinha!");
+        carrinho = [];
+        atualizarCarrinho();
+        voltarParaDashboard();
+    } catch (e) {
+        alert("Erro ao enviar: " + e.message);
+    }
 };
 
-// --- GESTÃO DE STATUS ---
+// --- GESTÃO DE STATUS (LISTA MEUS PEDIDOS) ---
 function ouvirPedidos() {
     onValue(ref(db, 'pedidos'), (snap) => {
         const cont = document.getElementById('lista-pedidos-geral');
         cont.innerHTML = "";
         const peds = snap.val();
-        if(peds) {
-            Object.keys(peds).forEach(id => {
-                const p = peds[id];
-                const card = document.createElement('div');
-                card.className = `card pedido-status-${p.status}`;
-                card.innerHTML = `
-                    <strong>${p.mesa}</strong> - <small>${p.status}</small>
-                    <div class="grid-status-btns">
-                        <button onclick="mudarStatus('${id}','preparando')">Prep.</button>
-                        <button onclick="mudarStatus('${id}','entregue')">Entregue</button>
-                        <button onclick="mudarStatus('${id}','finalizado')">Fechar</button>
-                    </div>
-                `;
-                cont.appendChild(card);
-            });
+        
+        if(!peds) {
+            cont.innerHTML = "<p class='loading-msg'>Nenhum pedido ativo.</p>";
+            return;
         }
+
+        Object.keys(peds).forEach(id => {
+            const p = peds[id];
+            const card = document.createElement('div');
+            card.className = `card pedido-status-${p.status}`;
+            card.innerHTML = `
+                <div style="display:flex; justify-content:space-between">
+                    <strong>${p.mesa}</strong>
+                    <small>${p.hora}</small>
+                </div>
+                <div style="font-size:13px; margin:5px 0">${p.itens.map(i => i.nome).join(', ')}</div>
+                <div style="font-size:12px; color: #666">Status atual: <b>${p.status.toUpperCase()}</b></div>
+                <div class="grid-status-btns">
+                    <button onclick="mudarStatus('${id}','preparando')">⏳ Prep.</button>
+                    <button onclick="mudarStatus('${id}','entregue')">✅ Entregar</button>
+                    <button onclick="mudarStatus('${id}','finalizado')" style="background:#fdd">🏁 Fechar</button>
+                </div>
+            `;
+            cont.appendChild(card);
+        });
     });
 }
 
-window.mudarStatus = (id, st) => {
+window.mudarStatus = async (id, st) => {
     if(st === 'finalizado') {
-        if(confirm("Fechar conta e liberar mesa?")) remove(ref(db, `pedidos/${id}`));
+        if(confirm("Deseja fechar a conta e liberar a mesa?")) {
+            await remove(ref(db, `pedidos/${id}`));
+        }
     } else {
-        update(ref(db, `pedidos/${id}`), { status: st });
+        await update(ref(db, `pedidos/${id}`), { status: st });
     }
 };
