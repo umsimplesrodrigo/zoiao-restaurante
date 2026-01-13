@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Cozinha - Zoiao Bar</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="body-cozinha">
+
+    <header style="color: white; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <h1>👨‍🍳 Pedidos Pendentes</h1>
+        <div id="status-conexao" style="font-size: 12px;">Conectado ao Firebase</div>
+    </header>
+
+    <div id="painel-pedidos" class="grid-pedidos">
+        </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUVjaNWqQcax68Vvk8VoBJGfoiL98-L88",
+            authDomain: "zoiao-restaurante.firebaseapp.com",
+            databaseURL: "https://zoiao-restaurante-default-rtdb.firebaseio.com",
+            projectId: "zoiao-restaurante",
+            storageBucket: "zoiao-restaurante-default-rtdb.firebaseio.com",
+            messagingSenderId: "975025400792",
+            appId: "1:975025400792:web:7c937c8d6cef32044420ad"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Monitora o nó 'pedidos' em tempo real
+        onValue(ref(db, 'pedidos'), (snapshot) => {
+            const painel = document.getElementById('painel-pedidos');
+            painel.innerHTML = "";
+            const pedidos = snapshot.val();
+
+            if (pedidos) {
+                Object.keys(pedidos).forEach(id => {
+                    const p = pedidos[id];
+                    const card = document.createElement('div');
+                    card.className = "card-pedido";
+                    
+                    const itensHtml = p.itens.map(i => `<div class="item-lista">● ${i.nome}</div>`).join('');
+
+                    card.innerHTML = `
+                        <h3>${p.mesa} <small style="float:right; font-size:12px">${p.hora}</small></h3>
+                        <div>${itensHtml}</div>
+                        <p style="font-size:12px; color:#666; margin-top:10px">Atendente: ${p.atendente}</p>
+                        <button class="btn-pronto" onclick="marcarPronto('${id}')">PRONTO / SAINDO</button>
+                    `;
+                    painel.appendChild(card);
+                });
+            } else {
+                painel.innerHTML = "<p style='color:white'>Aguardando novos pedidos...</p>";
+            }
+        });
+
+        window.marcarPronto = (id) => {
+            remove(ref(db, `pedidos/${id}`));
+        };
+    </script>
+</body>
+</html>
