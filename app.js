@@ -91,8 +91,18 @@ function montarSetores() {
 function renderizarGrid(s) {
     const grid = document.getElementById('grid-mesas');
     grid.innerHTML = "";
+    
+    // Convertemos o objeto de mesas em um array para poder ordenar
+    const mesasArray = [];
     for (let id in dadosMesas[s]) {
-        const m = dadosMesas[s][id];
+        mesasArray.push({ id, ...dadosMesas[s][id] });
+    }
+
+    // Ordenação numérica baseada no campo 'numero'
+    mesasArray.sort((a, b) => parseInt(a.numero) - parseInt(b.numero));
+
+    // Renderizamos as mesas já ordenadas
+    mesasArray.forEach(m => {
         const btn = document.createElement('button');
         btn.className = "mesa-btn";
         btn.innerText = "Mesa " + m.numero;
@@ -104,7 +114,7 @@ function renderizarGrid(s) {
             atualizarCarrinho();
         };
         grid.appendChild(btn);
-    }
+    });
 }
 
 function montarCategorias() {
