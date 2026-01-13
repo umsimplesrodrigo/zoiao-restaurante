@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, set, get, push, update, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref, set, get, push, update, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyCUVjaNWqQcax68Vvk8VoBJGfoiL98-L88",
@@ -18,7 +18,7 @@ let carrinho = [];
 let dadosCardapio = null;
 let dadosMesas = null;
 
-// --- LOGIN E PERSISTÊNCIA ---
+// --- LOGIN COM LIMPEZA DE ESPAÇOS ---
 window.onload = () => {
     const salvo = localStorage.getItem('atendente');
     if (salvo) {
@@ -31,6 +31,7 @@ window.fazerLogin = async function() {
     const campoNome = document.getElementById('nome-atendente');
     let nomeBruto = campoNome.value;
     if (!nomeBruto || nomeBruto.trim() === "") return alert("Digite seu nome.");
+
     const nomeLimpo = nomeBruto.trim().replace(/\s+/g, ' ');
     const slug = nomeLimpo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
 
@@ -64,7 +65,7 @@ window.voltarParaDashboard = () => {
     document.getElementById('tela-dashboard').style.display = 'block';
 };
 
-// --- CARREGAMENTO ---
+// --- CARREGAMENTO DE DADOS ---
 async function carregarDadosBase() {
     const [snM, snP] = await Promise.all([get(ref(db, 'setores_mesas')), get(ref(db, 'produtos'))]);
     if (snM.exists()) { dadosMesas = snM.val(); montarSetores(); }
@@ -152,9 +153,10 @@ function atualizarCarrinho() {
 
 window.removerItem = (i) => { carrinho.splice(i, 1); atualizarCarrinho(); };
 
+// --- ENVIO COMPARTILHADO (RODRIGO + YASMIN NA MESMA MESA) ---
 window.enviarPedidoFinal = async () => {
-    if (!carrinho.length) return alert("Adicione itens antes de enviar!");
-
+    if (!carrinho.length) return alert("Carrinho vazio!");
+    
     const atendenteAtual = localStorage.getItem('atendente');
     const mesaNome = document.getElementById('mesa-titulo').innerText;
     const dbRef = ref(db, 'pedidos');
@@ -166,8 +168,7 @@ window.enviarPedidoFinal = async () => {
 
         if (snapshot.exists()) {
             const todosPedidos = snapshot.val();
-            // Procuramos um pedido para a mesa que NÃO esteja 'finalizado'
-            // Isso garante que se a mesa for aberta de novo, será um ID novo.
+            // Busca se existe QUALQUER pedido aberto para esta mesa (independente do atendente)
             for (let id in todosPedidos) {
                 if (todosPedidos[id].mesa === mesaNome && todosPedidos[id].status !== 'finalizado') {
                     pedidoIdExistente = id;
@@ -178,58 +179,34 @@ window.enviarPedidoFinal = async () => {
         }
 
         if (pedidoIdExistente) {
-            // ATUALIZA o consumo do cliente atual naquela mesa
+            // ATUALIZA CONTA EXISTENTE
             const novosItens = [...itensAnteriores, ...carrinho];
-            const novoTotal = novosItens.reduce((acc, item) => acc + item.preco, 0);
-
             await update(ref(db, `pedidos/${pedidoIdExistente}`), {
                 itens: novosItens,
-                total: novoTotal,
-                status: 'pendente', // Cozinha vê que chegou algo novo
+                total: novosItens.reduce((acc, i) => acc + i.preco, 0),
+                status: 'pendente', // Cozinha alerta sobre novos itens
+                atendente: atendenteAtual, // O último a mexer "assume" o card na Opção A
                 ultima_atualizacao: new Date().toLocaleTimeString()
             });
-            alert("Itens adicionados à conta da mesa!");
+            alert("Itens adicionados à mesa!");
         } else {
-            // NOVO CLIENTE na mesa (Novo ID único)
+            // CRIA NOVA CONTA (Primeiro atendimento)
             await push(dbRef, {
                 mesa: mesaNome,
-                atendente: atendenteAtual,
+                atendente: atendenteAtual, 
                 itens: carrinho,
                 status: "pendente",
                 hora: new Date().toLocaleTimeString(),
-                total: carrinho.reduce((acc, item) => acc + item.preco, 0),
-                criado_em: new Date().toISOString() // Para seu relatório futuro
+                total: carrinho.reduce((acc, i) => acc + i.preco, 0)
             });
-            alert("Nova comanda aberta para esta mesa!");
+            alert("Mesa aberta com sucesso!");
         }
 
-        carrinho = [];
-        atualizarCarrinho();
-        voltarParaDashboard();
-    } catch (e) {
-        console.error(e);
-        alert("Erro ao processar venda.");
-    }
+        carrinho = []; atualizarCarrinho(); voltarParaDashboard();
+    } catch (e) { alert("Erro ao salvar pedido."); }
 };
 
-// --- FUNÇÃO DE FECHAR CONTA (GERA HISTÓRICO) ---
-window.mudarStatus = async (id, st) => {
-    if (st === 'finalizado') {
-        if (confirm("Fechar conta desta mesa? Ela ficará livre para o próximo cliente.")) {
-            // Em vez de remover (remove), apenas mudamos o status.
-            // O pedido "some" da tela do garçom porque o filtro ignora 'finalizado'.
-            await update(ref(db, `pedidos/${id}`), { 
-                status: 'finalizado',
-                horario_fechamento: new Date().toLocaleTimeString()
-            });
-            alert("Mesa finalizada! Os dados estão salvos no histórico.");
-        }
-    } else {
-        await update(ref(db, `pedidos/${id}`), { status: st });
-    }
-};
-
-// --- MONITORAMENTO DE PEDIDOS ---
+// --- MONITORAMENTO COM OPÇÃO A ---
 function ouvirPedidos() {
     const atendenteLogado = localStorage.getItem('atendente');
     onValue(ref(db, 'pedidos'), (snap) => {
@@ -240,7 +217,8 @@ function ouvirPedidos() {
             let temMeus = false;
             Object.keys(peds).forEach(id => {
                 const p = peds[id];
-                if (p.atendente === atendenteLogado) {
+                // Opção A: Só vejo se eu for o 'atendente' atual/responsável
+                if (p.atendente === atendenteLogado && p.status !== 'finalizado') {
                     temMeus = true;
                     const idLista = `detalhes-${id}`;
                     const card = document.createElement('div');
@@ -250,20 +228,18 @@ function ouvirPedidos() {
                         <button onclick="toggleDetalhes('${idLista}')" style="width:100%; margin: 10px 0; padding: 6px; font-size: 11px; background: #eee; border:none; border-radius:5px;">📋 VER ITENS (${p.itens.length})</button>
                         <div id="${idLista}" style="display:none; font-size:12px; color:#444; background: #fafafa; padding: 8px; border-radius: 5px; margin-bottom: 10px; border: 1px solid #ddd;">
                             ${p.itens.map(i => `• ${i.nome}`).join('<br>')}
-                            <div style="margin-top:5px; font-weight:bold">Total: R$ ${p.total.toFixed(2)}</div>
+                            <div style="margin-top:5px; font-weight:bold">Total Acumulado: R$ ${p.total.toFixed(2)}</div>
                         </div>
                         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;">
-                            <button onclick="mudarStatus('${id}','preparando')" style="font-size:10px; padding:5px;">Preparo</button>
-                            <button onclick="mudarStatus('${id}','entregue')" style="font-size:10px; padding:5px;">Entregue</button>
-                            <button onclick="mudarStatus('${id}','finalizado')" style="font-size:10px; padding:5px; background:#fdd;">Fechar</button>
+                            <button onclick="mudarStatus('${id}','preparando')" style="font-size:10px; padding:8px;">Preparo</button>
+                            <button onclick="mudarStatus('${id}','entregue')" style="font-size:10px; padding:8px;">Entregue</button>
+                            <button onclick="mudarStatus('${id}','finalizado')" style="font-size:10px; padding:8px; background:#fdd;">Fechar</button>
                         </div>`;
                     cont.appendChild(card);
                 }
             });
-            if (!temMeus) cont.innerHTML = "<p class='loading-msg'>Sem pedidos ativos.</p>";
-        } else {
-            cont.innerHTML = "<p class='loading-msg'>Sem pedidos no sistema.</p>";
-        }
+            if (!temMeus) cont.innerHTML = "<p class='loading-msg'>Você não tem mesas ativas agora.</p>";
+        } else { cont.innerHTML = "<p class='loading-msg'>Sem pedidos ativos.</p>"; }
     });
 }
 
@@ -274,7 +250,12 @@ window.toggleDetalhes = (id) => {
 
 window.mudarStatus = async (id, st) => {
     if (st === 'finalizado') {
-        if (confirm("Fechar mesa? Isso apagará o pedido da lista.")) await remove(ref(db, `pedidos/${id}`));
+        if (confirm("Fechar conta desta mesa? Os dados serão salvos no histórico.")) {
+            await update(ref(db, `pedidos/${id}`), { 
+                status: 'finalizado',
+                fechado_em: new Date().toLocaleString()
+            });
+        }
     } else {
         await update(ref(db, `pedidos/${id}`), { status: st });
     }
