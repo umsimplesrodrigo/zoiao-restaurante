@@ -2,48 +2,76 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zoiao Bar - Sistema</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zoiao Bar - PDV Mobile</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
     <div class="container">
         <section id="tela-login">
-            <div class="card">
+            <div class="card login-box">
                 <h1>🍻 Zoiao Bar</h1>
+                <p>Identifique-se para começar</p>
                 <input type="text" id="nome-atendente" placeholder="Nome do Atendente" autocomplete="off">
-                <button onclick="fazerLogin()">Entrar</button>
+                <button class="btn-confirmar" onclick="fazerLogin()">Entrar no Sistema</button>
             </div>
         </section>
 
         <section id="tela-mesas" style="display:none">
-            <header>
-                <span>Atendente: <strong id="user-display"></strong></span>
+            <header class="main-header">
+                <div>Atendente: <strong id="user-display"></strong></div>
                 <button class="btn-sair" onclick="location.reload()">Sair</button>
             </header>
-            <div class="grid-mesas" id="grid-mesas-container">
-                </div>
+            <div class="grid-mesas">
+                <script>
+                    for(let i=1; i<=15; i++) {
+                        document.write(`<div class="mesa-btn" onclick="abrirPedido(${i})">Mesa ${i}</div>`);
+                    }
+                </script>
+            </div>
         </section>
 
-		<section id="tela-pedido" style="display:none">
-			<header>
-				<h2 id="mesa-selecionada-titulo">Mesa --</h2>
-				<button class="btn-cancelar" onclick="voltarParaMesas()" style="width: auto; padding: 5px 15px;">Voltar</button>
-			</header>
+        <section id="tela-pedido" style="display:none">
+            <header class="pedido-header">
+                <button class="btn-voltar" onclick="voltarParaMesas()">← Voltar</button>
+                <h2 id="mesa-titulo">Mesa --</h2>
+            </header>
 
-			<div class="card" id="resumo-carrinho">
-				<h3>Pedido Atual:</h3>
-				<ul id="lista-pedido-ul"></ul>
-				<div class="total-area">Total: R$ <span id="total-pedido">0.00</span></div>
-				<button class="btn-confirmar" onclick="enviarPedidoFinal()">Enviar para Cozinha/Bar</button>
-			</div>
+            <div class="card carrinho-container">
+                <h3>Itens Selecionados:</h3>
+                <ul id="lista-carrinho-ul">
+                    <li class="empty-msg">Nenhum item adicionado</li>
+                </ul>
+                <div class="total-box">
+                    <span>Total:</span>
+                    <strong id="total-pedido">R$ 0,00</strong>
+                </div>
+                <button class="btn-enviar-banco" onclick="enviarPedidoFinal()">Confirmar e Enviar Pedido</button>
+            </div>
 
-			<div id="cardapio-itens">
-				</div>
-		</section>
+            <div id="cardapio-dinamico">
+                <p class="loading-msg">Carregando cardápio...</p>
+            </div>
+        </section>
     </div>
 
     <script type="module" src="app.js"></script>
+
+    <script>
+        // Funções de interface simples
+        function abrirPedido(numero) {
+            document.getElementById('mesa-titulo').innerText = "Mesa " + numero;
+            document.getElementById('mesa-titulo').dataset.numero = numero;
+            document.getElementById('tela-mesas').style.display = 'none';
+            document.getElementById('tela-pedido').style.display = 'block';
+            window.scrollTo(0,0);
+        }
+
+        function voltarParaMesas() {
+            document.getElementById('tela-pedido').style.display = 'none';
+            document.getElementById('tela-mesas').style.display = 'block';
+        }
+    </script>
 </body>
 </html>

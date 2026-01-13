@@ -1,78 +1,39 @@
-* { box-sizing: border-box; font-family: sans-serif; }
-body { background-color: #f0f2f5; margin: 0; padding: 10px; }
-.container { max-width: 500px; margin: auto; }
+:root {
+    --primary: #2c3e50;
+    --success: #27ae60;
+    --danger: #e74c3c;
+    --bg: #f4f7f6;
+}
 
-.card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 15px; }
+* { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+body { background: var(--bg); margin: 0; padding: 0; }
+.container { width: 100%; max-width: 500px; margin: auto; padding: 10px; }
+
+.card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 15px; }
+
+/* Header e Navegação */
+header { display: flex; justify-content: space-between; align-items: center; padding: 10px; background: white; border-radius: 8px; margin-bottom: 15px; }
+.btn-sair { background: var(--danger); color: white; border: none; padding: 5px 10px; border-radius: 5px; }
+.btn-voltar { background: #eee; border: none; padding: 8px 12px; border-radius: 5px; font-weight: bold; }
 
 /* Grid de Mesas */
 .grid-mesas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.mesa-btn { background: #3498db; color: white; height: 70px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: bold; }
+.mesa-btn { background: #3498db; color: white; height: 70px; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-weight: bold; font-size: 18px; cursor: pointer; }
 
 /* Carrinho */
-#lista-pedido-ul { list-style: none; padding: 0; }
-#lista-pedido-ul li { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
-.total-container { text-align: right; font-size: 20px; margin: 15px 0; color: #27ae60; }
+.carrinho-container { border-top: 5px solid var(--success); position: sticky; top: 10px; z-index: 100; }
+#lista-carrinho-ul { list-style: none; padding: 0; margin: 10px 0; max-height: 120px; overflow-y: auto; border-bottom: 1px solid #eee; }
+#lista-carrinho-ul li { display: flex; justify-content: space-between; padding: 5px 0; font-size: 14px; }
+.total-box { display: flex; justify-content: space-between; font-size: 20px; font-weight: bold; margin: 10px 0; color: var(--success); }
+.btn-enviar-banco { background: var(--success); color: white; width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; }
 
-/* Cardápio */
-.cat-btn { background: #e67e22; color: white; padding: 10px; margin: 5px; border-radius: 5px; border: none; font-size: 14px; }
-.prod-item { 
-    background: white; padding: 15px; margin: 8px 0; border-radius: 8px;
+/* Cardápio Dinâmico */
+.cat-header { background: var(--primary); color: white; padding: 10px; border-radius: 5px; margin: 20px 0 10px 0; font-size: 14px; text-transform: uppercase; }
+.produto-item { 
     display: flex; justify-content: space-between; align-items: center;
-    border-left: 6px solid #e67e22; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    background: white; padding: 15px; margin-bottom: 8px; border-radius: 8px;
+    border: 1px solid #ddd; border-left: 6px solid #f1c40f; width: 100%;
+    text-align: left; font-size: 15px;
 }
-.btn-confirmar { background: #27ae60; color: white; width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; }
-
-.cat-titulo {
-    background: #2c3e50;
-    color: white;
-    padding: 8px 15px;
-    border-radius: 5px;
-    margin-top: 20px;
-    font-size: 14px;
-    text-transform: uppercase;
-}
-
-.produto-btn {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: white;
-    color: #333;
-    border: 1px solid #ddd;
-    border-left: 6px solid #27ae60;
-    margin-top: 5px;
-    text-align: left;
-    font-size: 14px;
-    padding: 12px;
-}
-
-#lista-pedido-ul {
-    list-style: none;
-    padding: 0;
-    max-height: 150px;
-    overflow-y: auto;
-}
-
-#lista-pedido-ul li {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-bottom: 1px solid #eee;
-    font-size: 14px;
-}
-
-#lista-pedido-ul li button {
-    width: auto;
-    padding: 2px 8px;
-    margin: 0;
-    background: none;
-    color: red;
-}
-
-.total-area {
-    font-size: 20px;
-    font-weight: bold;
-    text-align: right;
-    margin: 15px 0;
-    color: #27ae60;
-}
+.produto-item:active { background: #f9f9f9; transform: scale(0.98); }
+.loading-msg { text-align: center; color: #666; margin-top: 50px; }
