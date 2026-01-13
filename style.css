@@ -1,3 +1,4 @@
+/* Variáveis de Cores */
 :root {
     --primary: #2c3e50;
     --success: #27ae60;
@@ -6,29 +7,126 @@
     --setor-color: #3498db;
 }
 
+/* Reset Básico */
 * { box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
-body { background: var(--bg); margin: 0; padding: 0; }
-.container { width: 100%; max-width: 500px; margin: auto; padding: 10px; }
-.card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 10px; }
 
-.main-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: white; padding: 10px; border-radius: 10px; }
+/* Estilo do Corpo apenas para o PDV */
+body { 
+    background: var(--bg); 
+    margin: 0; 
+    padding: 0; 
+    color: #333;
+}
 
-.tabs-container { display: flex; overflow-x: auto; gap: 8px; padding: 5px 0; scrollbar-width: none; }
+/* Container do Garçom (Limitado para Celular) */
+.container { 
+    width: 100%; 
+    max-width: 500px; 
+    margin: auto; 
+    padding: 10px; 
+}
+
+/* Cards de Pedidos e Login */
+.card { 
+    background: white; 
+    padding: 15px; 
+    border-radius: 12px; 
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1); 
+    margin-bottom: 15px; 
+}
+
+/* Cabeçalho */
+.main-header { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    margin-bottom: 15px; 
+    background: white; 
+    padding: 12px; 
+    border-radius: 10px; 
+    font-size: 0.9em;
+}
+
+/* Sistema de Abas */
+.tabs-container { 
+    display: flex; 
+    overflow-x: auto; 
+    gap: 8px; 
+    padding: 5px 0; 
+    scrollbar-width: none; 
+}
 .tabs-container::-webkit-scrollbar { display: none; }
-.tab-btn { background: #ddd; border: none; padding: 10px 15px; border-radius: 10px; font-weight: bold; color: #666; cursor: pointer; white-space: nowrap; }
-.tab-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 
+.tab-btn { 
+    background: #e0e0e0; 
+    border: none; 
+    padding: 10px 18px; 
+    border-radius: 10px; 
+    font-weight: bold; 
+    color: #666; 
+    cursor: pointer; 
+    white-space: nowrap; 
+    transition: 0.2s;
+}
+
+/* Cores das Abas Ativas */
+.tab-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 #tabs-setores .tab-btn.active { background: var(--setor-color); color: white; }
 #tabs-categorias .tab-btn.active { background: var(--accent); color: white; }
 
-.grid-mesas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.mesa-btn { background: var(--setor-color); color: white; height: 75px; border: none; border-radius: 10px; font-weight: bold; font-size: 16px; cursor: pointer; }
+/* Grid de Mesas */
+.grid-mesas { 
+    display: grid; 
+    grid-template-columns: repeat(3, 1fr); 
+    gap: 12px; 
+}
 
-.produto-btn { display: flex; justify-content: space-between; width: 100%; background: white; border: 1px solid #ddd; padding: 15px; margin-bottom: 8px; border-radius: 8px; border-left: 5px solid var(--accent); font-weight: bold; text-align: left; }
+.mesa-btn { 
+    background: var(--setor-color); 
+    color: white; 
+    height: 80px; 
+    border: none; 
+    border-radius: 12px; 
+    font-weight: bold; 
+    font-size: 16px; 
+    cursor: pointer; 
+    box-shadow: 0 4px 0 #2980b9;
+}
+.mesa-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #2980b9; }
 
-.pedido-status-pendente { border-left: 8px solid #f1c40f; }
-.pedido-status-preparando { border-left: 8px solid #3498db; }
-.pedido-status-entregue { border-left: 8px solid #2ecc71; }
+/* Botões de Produtos */
+.produto-btn { 
+    display: flex; 
+    justify-content: space-between; 
+    width: 100%; 
+    background: white; 
+    border: 1px solid #eee; 
+    padding: 18px; 
+    margin-bottom: 10px; 
+    border-radius: 10px; 
+    border-left: 6px solid var(--accent); 
+    font-weight: bold; 
+    text-align: left; 
+    cursor: pointer;
+}
 
-.btn-enviar-banco { background: var(--success); color: white; width: 100%; border: none; padding: 15px; border-radius: 10px; font-weight: bold; font-size: 1.1em; cursor: pointer; }
-.loading-msg { text-align: center; color: #999; padding: 20px; }
+/* Status dos Pedidos na tela do Garçom */
+.pedido-status-pendente { border-left: 8px solid #f1c40f !important; }
+.pedido-status-preparando { border-left: 8px solid #3498db !important; }
+.pedido-status-entregue { border-left: 8px solid #2ecc71 !important; }
+
+/* Botão de Envio */
+.btn-enviar-banco { 
+    background: var(--success); 
+    color: white; 
+    width: 100%; 
+    border: none; 
+    padding: 16px; 
+    border-radius: 12px; 
+    font-weight: bold; 
+    font-size: 1.1em; 
+    cursor: pointer; 
+    margin-top: 10px;
+}
+
+.loading-msg { text-align: center; color: #999; padding: 30px; font-style: italic; }
