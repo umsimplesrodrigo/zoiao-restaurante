@@ -30,18 +30,9 @@ window.onload = () => {
 window.fazerLogin = async function() {
     const campoNome = document.getElementById('nome-atendente');
     let nomeBruto = campoNome.value;
-    
     if (!nomeBruto || nomeBruto.trim() === "") return alert("Digite seu nome.");
-
-    // Limpeza de espaços (Início, Fim e Duplos)
     const nomeLimpo = nomeBruto.trim().replace(/\s+/g, ' ');
-
-    // Gerar ID único (Slug)
-    const slug = nomeLimpo.toLowerCase()
-        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9]/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-+|-+$/g, '');
+    const slug = nomeLimpo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
 
     try {
         await update(ref(db, 'atendentes/' + slug), {
@@ -49,23 +40,16 @@ window.fazerLogin = async function() {
             ultimo_acesso: new Date().toLocaleString(),
             status: "online"
         });
-
         localStorage.setItem('atendente', nomeLimpo);
         document.getElementById('user-display').innerText = nomeLimpo;
         document.getElementById('tela-login').style.display = 'none';
         document.getElementById('tela-dashboard').style.display = 'block';
-        
         carregarDadosBase();
         ouvirPedidos();
-    } catch (e) {
-        alert("Erro de conexão.");
-    }
+    } catch (e) { alert("Erro de conexão."); }
 };
 
-window.logout = () => {
-    localStorage.removeItem('atendente');
-    location.reload();
-};
+window.logout = () => { localStorage.removeItem('atendente'); location.reload(); };
 
 // --- NAVEGAÇÃO ---
 window.mudarAbaPrincipal = (aba, btn) => {
@@ -168,22 +152,66 @@ function atualizarCarrinho() {
 
 window.removerItem = (i) => { carrinho.splice(i, 1); atualizarCarrinho(); };
 
+// --- LÓGICA DE ENVIO (AGRUPANDO NA MESMA MESA) ---
 window.enviarPedidoFinal = async () => {
     if (!carrinho.length) return alert("Carrinho vazio!");
+    
     const atendenteAtual = localStorage.getItem('atendente');
-    await push(ref(db, 'pedidos'), {
-        mesa: document.getElementById('mesa-titulo').innerText,
-        atendente: atendenteAtual,
-        itens: carrinho,
-        status: "pendente",
-        hora: new Date().toLocaleTimeString(),
-        total: carrinho.reduce((a, b) => a + b.preco, 0)
-    });
-    alert("Pedido enviado!");
-    carrinho = []; atualizarCarrinho(); voltarParaDashboard();
+    const mesaAtual = document.getElementById('mesa-titulo').innerText;
+    const dbRef = ref(db, 'pedidos');
+
+    try {
+        const snapshot = await get(dbRef);
+        let pedidoExistenteId = null;
+        let itensAtuais = [];
+
+        // Busca se já existe um pedido aberto para esta mesa
+        if (snapshot.exists()) {
+            const todosPedidos = snapshot.val();
+            pedidoExistenteId = Object.keys(todosPedidos).find(id => 
+                todosPedidos[id].mesa === mesaAtual && 
+                todosPedidos[id].status !== 'finalizado'
+            );
+            if (pedidoExistenteId) {
+                itensAtuais = todosPedidos[pedidoExistenteId].itens || [];
+            }
+        }
+
+        if (pedidoExistenteId) {
+            // ATUALIZA pedido existente
+            const novosItens = [...itensAtuais, ...carrinho];
+            const novoTotal = novosItens.reduce((a, b) => a + b.preco, 0);
+            
+            await update(ref(db, `pedidos/${pedidoExistenteId}`), {
+                itens: novosItens,
+                total: novoTotal,
+                status: 'pendente', // Volta para pendente para a cozinha ver que chegou algo novo
+                ultima_atualizacao: new Date().toLocaleTimeString()
+            });
+            alert("Itens adicionados à mesa!");
+        } else {
+            // CRIA novo pedido
+            await push(dbRef, {
+                mesa: mesaAtual,
+                atendente: atendenteAtual,
+                itens: carrinho,
+                status: "pendente",
+                hora: new Date().toLocaleTimeString(),
+                total: carrinho.reduce((a, b) => a + b.preco, 0)
+            });
+            alert("Pedido criado com sucesso!");
+        }
+
+        carrinho = []; 
+        atualizarCarrinho(); 
+        voltarParaDashboard();
+    } catch (e) {
+        console.error(e);
+        alert("Erro ao processar pedido.");
+    }
 };
 
-// --- MONITORAMENTO DE PEDIDOS COM DETALHES ---
+// --- MONITORAMENTO DE PEDIDOS ---
 function ouvirPedidos() {
     const atendenteLogado = localStorage.getItem('atendente');
     onValue(ref(db, 'pedidos'), (snap) => {
@@ -201,14 +229,11 @@ function ouvirPedidos() {
                     card.className = `card pedido-status-${p.status}`;
                     card.innerHTML = `
                         <div style="display:flex; justify-content:space-between"><strong>${p.mesa}</strong> <small>${p.hora}</small></div>
-                        
-                        <button onclick="toggleDetalhes('${idLista}')" style="width:100%; margin: 10px 0; padding: 6px; font-size: 11px; background: #eee; border:none; border-radius:5px; cursor:pointer">📋 VER ITENS (${p.itens.length})</button>
-
+                        <button onclick="toggleDetalhes('${idLista}')" style="width:100%; margin: 10px 0; padding: 6px; font-size: 11px; background: #eee; border:none; border-radius:5px;">📋 VER ITENS (${p.itens.length})</button>
                         <div id="${idLista}" style="display:none; font-size:12px; color:#444; background: #fafafa; padding: 8px; border-radius: 5px; margin-bottom: 10px; border: 1px solid #ddd;">
                             ${p.itens.map(i => `• ${i.nome}`).join('<br>')}
                             <div style="margin-top:5px; font-weight:bold">Total: R$ ${p.total.toFixed(2)}</div>
                         </div>
-
                         <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;">
                             <button onclick="mudarStatus('${id}','preparando')" style="font-size:10px; padding:5px;">Preparo</button>
                             <button onclick="mudarStatus('${id}','entregue')" style="font-size:10px; padding:5px;">Entregue</button>
@@ -217,7 +242,7 @@ function ouvirPedidos() {
                     cont.appendChild(card);
                 }
             });
-            if (!temMeus) cont.innerHTML = "<p class='loading-msg'>Sem pedidos seus ativos.</p>";
+            if (!temMeus) cont.innerHTML = "<p class='loading-msg'>Sem pedidos ativos.</p>";
         } else {
             cont.innerHTML = "<p class='loading-msg'>Sem pedidos no sistema.</p>";
         }
@@ -231,7 +256,7 @@ window.toggleDetalhes = (id) => {
 
 window.mudarStatus = async (id, st) => {
     if (st === 'finalizado') {
-        if (confirm("Fechar mesa?")) await remove(ref(db, `pedidos/${id}`));
+        if (confirm("Fechar mesa? Isso apagará o pedido da lista.")) await remove(ref(db, `pedidos/${id}`));
     } else {
         await update(ref(db, `pedidos/${id}`), { status: st });
     }
