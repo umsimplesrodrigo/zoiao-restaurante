@@ -13,10 +13,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+
 let carrinho = [];
 let dadosCardapio = null;
+let dadosMesas = null;
 
-// --- NAVEGAÇÃO E LOGIN ---
+// --- LOGIN ---
 window.fazerLogin = function() {
     const nome = document.getElementById('nome-atendente').value;
     if(!nome) return alert("Digite seu nome!");
@@ -24,76 +26,109 @@ window.fazerLogin = function() {
     document.getElementById('user-display').innerText = nome;
     document.getElementById('tela-login').style.display = 'none';
     document.getElementById('tela-mesas').style.display = 'block';
-    gerarMesas();
-    carregarDadosCardapio();
+    
+    carregarTudo();
 };
 
-window.abrirMesa = function(n) {
-    document.getElementById('mesa-titulo').innerText = "Mesa " + n;
-    document.getElementById('mesa-titulo').dataset.numero = n;
+async function carregarTudo() {
+    // Busca Mesas e Produtos simultaneamente
+    const [snapMesas, snapProdutos] = await Promise.all([
+        get(ref(db, 'setores_mesas')),
+        get(ref(db, 'produtos'))
+    ]);
+
+    if(snapMesas.exists()) {
+        dadosMesas = snapMesas.val();
+        renderizarAbasSetores();
+    }
+    if(snapProdutos.exists()) {
+        dadosCardapio = snapProdutos.val();
+        renderizarAbasCategorias();
+    }
+}
+
+// --- LÓGICA DE MESAS POR SETOR ---
+function renderizarAbasSetores() {
+    const container = document.getElementById('tabs-setores');
+    container.innerHTML = "";
+    Object.keys(dadosMesas).forEach((setor, index) => {
+        const btn = document.createElement('button');
+        btn.className = "tab-btn" + (index === 0 ? " active" : "");
+        btn.innerText = setor;
+        btn.onclick = () => {
+            document.querySelectorAll('#tabs-setores .tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            renderizarGridMesas(setor);
+        };
+        container.appendChild(btn);
+    });
+    renderizarGridMesas(Object.keys(dadosMesas)[0]);
+}
+
+function renderizarGridMesas(setor) {
+    const grid = document.getElementById('grid-mesas');
+    grid.innerHTML = "";
+    const mesas = dadosMesas[setor];
+    for(let id in mesas) {
+        const m = mesas[id];
+        const btn = document.createElement('button');
+        btn.className = "mesa-btn";
+        btn.innerHTML = `<span>Mesa ${m.numero}</span><small>${setor}</small>`;
+        btn.onclick = () => abrirPedido(m.label);
+        grid.appendChild(btn);
+    }
+}
+
+// --- LÓGICA DE PEDIDOS ---
+function abrirPedido(label) {
+    document.getElementById('mesa-titulo').innerText = label;
     document.getElementById('tela-mesas').style.display = 'none';
     document.getElementById('tela-pedido').style.display = 'block';
-};
+}
 
-window.voltarParaMesas = function() {
+window.voltarParaMesas = () => {
     document.getElementById('tela-pedido').style.display = 'none';
     document.getElementById('tela-mesas').style.display = 'block';
 };
 
-// --- LÓGICA DO CARDÁPIO POR ABAS ---
-async function carregarDadosCardapio() {
-    const snap = await get(ref(db, 'produtos'));
-    if(snap.exists()) {
-        dadosCardapio = snap.val();
-        renderizarAbas();
-    }
-}
-
-function renderizarAbas() {
+// --- CARDÁPIO ---
+function renderizarAbasCategorias() {
     const container = document.getElementById('tabs-categorias');
     container.innerHTML = "";
     Object.keys(dadosCardapio).forEach((cat, index) => {
         const btn = document.createElement('button');
         btn.className = "tab-btn" + (index === 0 ? " active" : "");
         btn.innerText = cat;
-        btn.onclick = (e) => {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.onclick = () => {
+            document.querySelectorAll('#tabs-categorias .tab-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             renderizarProdutos(cat);
         };
         container.appendChild(btn);
     });
-    renderizarProdutos(Object.keys(dadosCardapio)[0]); // Inicia na primeira categoria
+    renderizarProdutos(Object.keys(dadosCardapio)[0]);
 }
 
-function renderizarProdutos(categoria) {
+function renderizarProdutos(cat) {
     const container = document.getElementById('produtos-container');
     container.innerHTML = "";
-    const itens = dadosCardapio[categoria];
+    const itens = dadosCardapio[cat];
     for(let id in itens) {
         const p = itens[id];
         const btn = document.createElement('button');
         btn.className = "produto-btn";
         btn.innerHTML = `<span>${p.nome}</span> <strong>R$ ${p.preco.toFixed(2)}</strong>`;
-        btn.onclick = () => adicionarAoCarrinho(p.nome, p.preco);
+        btn.onclick = () => {
+            carrinho.push({nome: p.nome, preco: p.preco});
+            atualizarCarrinhoHTML();
+        };
         container.appendChild(btn);
     }
 }
 
-// --- CARRINHO E ENVIO ---
-function adicionarAoCarrinho(nome, preco) {
-    carrinho.push({ nome, preco });
-    atualizarCarrinhoHTML();
-}
-
-window.removerItem = function(i) {
-    carrinho.splice(i, 1);
-    atualizarCarrinhoHTML();
-};
-
 function atualizarCarrinhoHTML() {
     const ul = document.getElementById('lista-carrinho-ul');
-    ul.innerHTML = carrinho.length ? "" : '<li class="empty-msg">Nenhum item adicionado</li>';
+    ul.innerHTML = "";
     let total = 0;
     carrinho.forEach((item, i) => {
         total += item.preco;
@@ -102,12 +137,16 @@ function atualizarCarrinhoHTML() {
     document.getElementById('total-pedido').innerText = `R$ ${total.toFixed(2)}`;
 }
 
-window.enviarPedidoFinal = async function() {
+window.removerItem = (i) => {
+    carrinho.splice(i, 1);
+    atualizarCarrinhoHTML();
+};
+
+window.enviarPedidoFinal = async () => {
     if(!carrinho.length) return alert("Adicione itens!");
-    const mesa = document.getElementById('mesa-titulo').dataset.numero;
+    const mesa = document.getElementById('mesa-titulo').innerText;
     const atendente = localStorage.getItem('atendente');
-    const novoPedidoRef = push(ref(db, 'pedidos'));
-    await set(novoPedidoRef, {
+    await push(ref(db, 'pedidos'), {
         mesa, atendente, itens: carrinho,
         total: carrinho.reduce((a,b) => a + b.preco, 0),
         hora: new Date().toLocaleTimeString(),
@@ -118,15 +157,3 @@ window.enviarPedidoFinal = async function() {
     atualizarCarrinhoHTML();
     voltarParaMesas();
 };
-
-function gerarMesas() {
-    const grid = document.getElementById('grid-mesas');
-    grid.innerHTML = "";
-    for(let i=1; i<=15; i++) {
-        const div = document.createElement('div');
-        div.className = "mesa-btn";
-        div.innerText = "Mesa " + i;
-        div.onclick = () => window.abrirMesa(i);
-        grid.appendChild(div);
-    }
-}

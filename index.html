@@ -19,11 +19,16 @@
         </section>
 
         <section id="tela-mesas" style="display:none">
-            <header>
-                <span>Atendente: <strong id="user-display"></strong></span>
+            <header class="main-header">
+                <div>Atendente: <strong id="user-display"></strong></div>
                 <button class="btn-sair" onclick="location.reload()">Sair</button>
             </header>
-            <div class="grid-mesas" id="grid-mesas"></div>
+            
+            <div id="tabs-setores" class="tabs-container"></div>
+            
+            <div class="grid-mesas" id="grid-mesas">
+                <p class="loading-msg">Selecione um setor acima</p>
+            </div>
         </section>
 
         <section id="tela-pedido" style="display:none">
@@ -32,11 +37,9 @@
                     <button class="btn-voltar" onclick="voltarParaMesas()">← Voltar</button>
                     <h2 id="mesa-titulo">Mesa --</h2>
                 </div>
-                
                 <ul id="lista-carrinho-ul">
                     <li class="empty-msg">Nenhum item adicionado</li>
                 </ul>
-                
                 <div class="total-box">
                     <span>Total:</span>
                     <strong id="total-pedido">R$ 0,00</strong>
@@ -44,11 +47,8 @@
                 <button class="btn-enviar-banco" onclick="enviarPedidoFinal()">Confirmar Pedido</button>
             </div>
 
-            <div id="tabs-categorias" class="tabs-container">
-                </div>
-
-            <div id="produtos-container">
-                </div>
+            <div id="tabs-categorias" class="tabs-container"></div>
+            <div id="produtos-container"></div>
         </section>
     </div>
 
