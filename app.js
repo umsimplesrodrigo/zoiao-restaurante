@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, set, get, push, update, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-// Configuração do seu Firebase
 const firebaseConfig = {
     apiKey: "AIzaSyCUVjaNWqQcax68Vvk8VoBJGfoiL98-L88",
     authDomain: "zoiao-restaurante.firebaseapp.com",
@@ -19,7 +18,7 @@ let carrinho = [];
 let dadosCardapio = null;
 let dadosMesas = null;
 
-// --- 1. CONTROLE DE ACESSO (LOGIN) ---
+// --- 1. CONTROLE DE ACESSO COM LIMPEZA DE ESPAÇOS ---
 
 window.onload = () => {
     const atendenteSalvo = localStorage.getItem('atendente');
@@ -33,32 +32,32 @@ window.fazerLogin = async function() {
     const campoNome = document.getElementById('nome-atendente');
     let nomeBruto = campoNome.value;
     
-    // Validação básica
     if (!nomeBruto || nomeBruto.trim() === "") {
-        return alert("Por favor, digite seu nome para entrar.");
+        return alert("Por favor, digite seu nome.");
     }
 
-    // Normalização para evitar duplicatas no banco (Ex: "Yasmin " vs "Yasmin")
-    const nomeLimpo = nomeBruto.trim();
+    // LIMPEZA TOTAL:
+    // 1. .trim() remove espaços no início e fim.
+    // 2. .replace(/\s+/g, ' ') substitui múltiplos espaços internos por apenas um.
+    const nomeLimpo = nomeBruto.trim().replace(/\s+/g, ' ');
+
+    // Geração do ID (slug) para o banco sem espaços e sem acentos
     const slug = nomeLimpo.toLowerCase()
         .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "") // Remove acentos
-        .replace(/[^a-z0-9\s]/g, "")     // Remove símbolos
-        .replace(/\s+/g, '-');           // Troca espaços por traço
+        .replace(/[\u0300-\u036f]/g, "") 
+        .replace(/[^a-z0-9]/g, '-') // Qualquer caractere estranho vira traço
+        .replace(/-+/g, '-')       // Evita traços duplos
+        .replace(/^-+|-+$/g, '');  // Remove traços no início ou fim
 
     try {
-        // Grava/Atualiza o atendente no banco
         await update(ref(db, 'atendentes/' + slug), {
-            nome_exibicao: nomeLimpo,
+            nome_exibicao: nomeLimpo, // Envia para o banco o nome corrigido
             slug: slug,
             ultimo_acesso: new Date().toLocaleString(),
             status: "online"
         });
 
-        // Persistência local
         localStorage.setItem('atendente', nomeLimpo);
-        
-        // Interface
         document.getElementById('user-display').innerText = nomeLimpo;
         document.getElementById('tela-login').style.display = 'none';
         document.getElementById('tela-dashboard').style.display = 'block';
@@ -66,8 +65,7 @@ window.fazerLogin = async function() {
         carregarDadosBase();
         ouvirPedidos();
     } catch (e) {
-        console.error("Erro no login:", e);
-        alert("Erro ao conectar com o banco de dados.");
+        alert("Erro ao conectar com o banco.");
     }
 };
 
@@ -90,33 +88,18 @@ window.voltarParaDashboard = () => {
     document.getElementById('tela-dashboard').style.display = 'block';
 };
 
-// --- 3. CARREGAMENTO DE DADOS (MESAS E PRODUTOS) ---
+// --- 3. DADOS (MESAS E PRODUTOS) ---
 
 async function carregarDadosBase() {
-    try {
-        const [snM, snP] = await Promise.all([
-            get(ref(db, 'setores_mesas')), 
-            get(ref(db, 'produtos'))
-        ]);
-        
-        if (snM.exists()) { 
-            dadosMesas = snM.val(); 
-            montarSetores(); 
-        }
-        if (snP.exists()) { 
-            dadosCardapio = snP.val(); 
-            montarCategorias(); 
-        }
-    } catch (e) {
-        console.error("Erro ao carregar mesas/produtos:", e);
-    }
+    const [snM, snP] = await Promise.all([get(ref(db, 'setores_mesas')), get(ref(db, 'produtos'))]);
+    if (snM.exists()) { dadosMesas = snM.val(); montarSetores(); }
+    if (snP.exists()) { dadosCardapio = snP.val(); montarCategorias(); }
 }
 
 function montarSetores() {
     const cont = document.getElementById('tabs-setores');
     cont.innerHTML = "";
-    const setores = Object.keys(dadosMesas);
-    setores.forEach((s, i) => {
+    Object.keys(dadosMesas).forEach((s, i) => {
         const btn = document.createElement('button');
         btn.className = "tab-btn" + (i === 0 ? " active" : "");
         btn.innerText = s;
@@ -127,38 +110,32 @@ function montarSetores() {
         };
         cont.appendChild(btn);
     });
-    renderizarGridMesas(setores[0]);
+    renderizarGridMesas(Object.keys(dadosMesas)[0]);
 }
 
 function renderizarGridMesas(setor) {
     const grid = document.getElementById('grid-mesas');
     grid.innerHTML = "";
-    const mesas = dadosMesas[setor];
-    for (let id in mesas) {
-        const m = mesas[id];
+    for (let id in dadosMesas[setor]) {
+        const m = dadosMesas[setor][id];
         const btn = document.createElement('button');
         btn.className = "mesa-btn";
         btn.innerText = "Mesa " + m.numero;
-        btn.onclick = () => abrirMesa(setor, m.numero);
+        btn.onclick = () => {
+            document.getElementById('mesa-titulo').innerText = `${setor} - Mesa ${m.numero}`;
+            document.getElementById('tela-dashboard').style.display = 'none';
+            document.getElementById('tela-pedido').style.display = 'block';
+            carrinho = [];
+            atualizarCarrinho();
+        };
         grid.appendChild(btn);
     }
 }
 
-function abrirMesa(setor, numero) {
-    document.getElementById('mesa-titulo').innerText = `${setor} - Mesa ${numero}`;
-    document.getElementById('tela-dashboard').style.display = 'none';
-    document.getElementById('tela-pedido').style.display = 'block';
-    carrinho = [];
-    atualizarCarrinho();
-}
-
-// --- 4. LÓGICA DO CARDÁPIO E CARRINHO ---
-
 function montarCategorias() {
     const cont = document.getElementById('tabs-categorias');
     cont.innerHTML = "";
-    const categorias = Object.keys(dadosCardapio);
-    categorias.forEach((c, i) => {
+    Object.keys(dadosCardapio).forEach((c, i) => {
         const btn = document.createElement('button');
         btn.className = "tab-btn" + (i === 0 ? " active" : "");
         btn.innerText = c;
@@ -169,22 +146,18 @@ function montarCategorias() {
         };
         cont.appendChild(btn);
     });
-    renderizarProdutos(categorias[0]);
+    renderizarProdutos(Object.keys(dadosCardapio)[0]);
 }
 
-function renderizarProdutos(categoria) {
+function renderizarProdutos(cat) {
     const cont = document.getElementById('produtos-container');
     cont.innerHTML = "";
-    const itens = dadosCardapio[categoria];
-    for (let id in itens) {
-        const p = itens[id];
+    for (let id in dadosCardapio[cat]) {
+        const p = dadosCardapio[cat][id];
         const btn = document.createElement('button');
         btn.className = "produto-btn";
         btn.innerHTML = `<span>${p.nome}</span> <strong>R$ ${p.preco.toFixed(2)}</strong>`;
-        btn.onclick = () => {
-            carrinho.push(p);
-            atualizarCarrinho();
-        };
+        btn.onclick = () => { carrinho.push(p); atualizarCarrinho(); };
         cont.appendChild(btn);
     }
 }
@@ -195,103 +168,69 @@ function atualizarCarrinho() {
     let total = 0;
     carrinho.forEach((item, i) => {
         total += item.preco;
-        ul.innerHTML += `
-            <li style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee;">
-                <span>${item.nome}</span>
-                <span>R$ ${item.preco.toFixed(2)} <b onclick="removerDoCarrinho(${i})" style="color:red; cursor:pointer; margin-left:10px;">X</b></span>
-            </li>`;
+        ul.innerHTML += `<li style="display:flex; justify-content:space-between; padding:8px; border-bottom:1px solid #eee;">
+            ${item.nome} <b onclick="removerItem(${i})" style="color:red; cursor:pointer">X</b>
+        </li>`;
     });
     document.getElementById('total-pedido').innerText = `R$ ${total.toFixed(2)}`;
 }
 
-window.removerDoCarrinho = (index) => {
-    carrinho.splice(index, 1);
-    atualizarCarrinho();
-};
+window.removerItem = (i) => { carrinho.splice(i, 1); atualizarCarrinho(); };
 
 window.enviarPedidoFinal = async () => {
-    if (carrinho.length === 0) return alert("O carrinho está vazio!");
-    
+    if (!carrinho.length) return alert("Carrinho vazio!");
     const atendenteAtual = localStorage.getItem('atendente');
-    const mesaAtual = document.getElementById('mesa-titulo').innerText;
-
-    try {
-        await push(ref(db, 'pedidos'), {
-            mesa: mesaAtual,
-            atendente: atendenteAtual,
-            itens: carrinho,
-            status: "pendente",
-            hora: new Date().toLocaleTimeString(),
-            total: carrinho.reduce((acc, item) => acc + item.preco, 0)
-        });
-        
-        alert("Pedido enviado com sucesso!");
-        carrinho = [];
-        atualizarCarrinho();
-        voltarParaDashboard();
-    } catch (e) {
-        alert("Erro ao enviar pedido ao banco.");
-    }
+    await push(ref(db, 'pedidos'), {
+        mesa: document.getElementById('mesa-titulo').innerText,
+        atendente: atendenteAtual,
+        itens: carrinho,
+        status: "pendente",
+        hora: new Date().toLocaleTimeString(),
+        total: carrinho.reduce((a, b) => a + b.preco, 0)
+    });
+    alert("Pedido enviado!");
+    carrinho = []; atualizarCarrinho(); voltarParaDashboard();
 };
 
-// --- 5. MONITORAMENTO DE PEDIDOS (FILTRADO POR ATENDENTE) ---
+// --- 4. MONITORAMENTO DE PEDIDOS ---
 
 function ouvirPedidos() {
     const atendenteLogado = localStorage.getItem('atendente');
-    const cont = document.getElementById('lista-pedidos-geral');
-
     onValue(ref(db, 'pedidos'), (snap) => {
+        const cont = document.getElementById('lista-pedidos-geral');
         cont.innerHTML = "";
-        const todosPedidos = snap.val();
-        
-        if (!todosPedidos) {
-            cont.innerHTML = "<p class='loading-msg'>Nenhum pedido ativo.</p>";
-            return;
-        }
-
-        let encontrouMeus = false;
-
-        Object.keys(todosPedidos).forEach(id => {
-            const p = todosPedidos[id];
-            
-            // FILTRO: Só exibe se o nome do atendente for idêntico ao logado
-            if (p.atendente === atendenteLogado) {
-                encontrouMeus = true;
-                const card = document.createElement('div');
-                card.className = `card pedido-status-${p.status}`;
-                card.style.borderLeft = "6px solid " + (p.status === 'pendente' ? '#f1c40f' : p.status === 'preparando' ? '#3498db' : '#2ecc71');
-                
-                card.innerHTML = `
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <strong>${p.mesa}</strong>
-                        <small>${p.hora}</small>
-                    </div>
-                    <div style="font-size:13px; margin:8px 0; color:#555;">
-                        ${p.itens.map(i => i.nome).join(', ')}
-                    </div>
-                    <div style="font-weight:bold; font-size:14px; margin-bottom:10px;">Total: R$ ${p.total.toFixed(2)}</div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;">
-                        <button onclick="mudarStatusPedido('${id}','preparando')" style="padding:6px; font-size:11px;">⏳ Preparo</button>
-                        <button onclick="mudarStatusPedido('${id}','entregue')" style="padding:6px; font-size:11px;">✅ Entregue</button>
-                        <button onclick="mudarStatusPedido('${id}','finalizado')" style="padding:6px; font-size:11px; background:#fdd; border:1px solid #fbb;">🏁 Fechar</button>
-                    </div>
-                `;
-                cont.appendChild(card);
-            }
-        });
-
-        if (!encontrouMeus) {
-            cont.innerHTML = "<p class='loading-msg'>Você não tem pedidos ativos.</p>";
+        const peds = snap.val();
+        if (peds) {
+            let temMeus = false;
+            Object.keys(peds).forEach(id => {
+                const p = peds[id];
+                if (p.atendente === atendenteLogado) {
+                    temMeus = true;
+                    const card = document.createElement('div');
+                    card.className = `card pedido-status-${p.status}`;
+                    card.style.borderLeft = "6px solid " + (p.status === 'pendente' ? '#f1c40f' : p.status === 'preparando' ? '#3498db' : '#2ecc71');
+                    card.innerHTML = `
+                        <strong>${p.mesa}</strong> <small>${p.hora}</small><br>
+                        <div style="font-size:12px; color:#666">${p.itens.map(i => i.nome).join(', ')}</div>
+                        <div style="margin-top:10px; display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px;">
+                            <button onclick="mudarStatus('${id}','preparando')" style="font-size:10px; padding:5px;">Preparo</button>
+                            <button onclick="mudarStatus('${id}','entregue')" style="font-size:10px; padding:5px;">Entregue</button>
+                            <button onclick="mudarStatus('${id}','finalizado')" style="font-size:10px; padding:5px; background:#fdd;">Fechar</button>
+                        </div>`;
+                    cont.appendChild(card);
+                }
+            });
+            if (!temMeus) cont.innerHTML = "<p style='text-align:center; color:#999'>Sem pedidos ativos.</p>";
+        } else {
+            cont.innerHTML = "<p style='text-align:center; color:#999'>Sem pedidos no sistema.</p>";
         }
     });
 }
 
-window.mudarStatusPedido = async (id, novoStatus) => {
-    if (novoStatus === 'finalizado') {
-        if (confirm("Deseja fechar a conta e remover este pedido da lista?")) {
-            await remove(ref(db, `pedidos/${id}`));
-        }
+window.mudarStatus = async (id, st) => {
+    if (st === 'finalizado') {
+        if (confirm("Fechar mesa?")) await remove(ref(db, `pedidos/${id}`));
     } else {
-        await update(ref(db, `pedidos/${id}`), { status: novoStatus });
+        await update(ref(db, `pedidos/${id}`), { status: st });
     }
 };
